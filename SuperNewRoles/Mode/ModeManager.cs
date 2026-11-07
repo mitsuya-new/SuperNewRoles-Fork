@@ -15,7 +15,8 @@ public static class ModeManager
     private static readonly Dictionary<ModeId, Func<IModeBase>> modeFactories = new()
     {
         { ModeId.WCBattleRoyal, () => WCBattleRoyalMode.Instance },
-        { ModeId.BattleRoyal, () => BattleRoyalMode.Instance }
+        { ModeId.BattleRoyal, () => BattleRoyalMode.Instance },
+        { ModeId.SuperHostRoles, () => SuperHostRolesMode.Instance }
     };
 
     /// <summary>

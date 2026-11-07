@@ -84,11 +84,19 @@ public class CustomSidekickButtonAbility : TargetCustomButtonBase
 
     public override void OnClick()
     {
-        if (Target == null) return;
-        if (!_options.CanCreateSidekick(_sidekickCreated)) return;
-        ExPlayerControl target = Target;
-        if (target.IsDead()) return;
-        if (_options.SidekickSuccess == null || _options.SidekickSuccess(target))
+        TryCreateSidekick(Target);
+    }
+
+    public bool CanCreateSidekickFor(ExPlayerControl target)
+        => target != null && target != Player && !target.IsDead()
+            && _options.CanCreateSidekick(_sidekickCreated)
+            && (_options.IsTargetable == null || _options.IsTargetable(target));
+
+    public bool TryCreateSidekick(ExPlayerControl target)
+    {
+        if (!CanCreateSidekickFor(target)) return false;
+        bool success = _options.SidekickSuccess == null || _options.SidekickSuccess(target);
+        if (success)
         {
             var vanillaRole = _options.SidekickRoleVanilla?.Invoke();
             RpcSidekicked(target, new SidekickData(
@@ -105,6 +113,7 @@ public class CustomSidekickButtonAbility : TargetCustomButtonBase
         ResetTimer();
         OnCooldownStarted?.Invoke(DefaultTimer);
         Count--;
+        return success;
     }
 
     public override bool CheckIsAvailable()

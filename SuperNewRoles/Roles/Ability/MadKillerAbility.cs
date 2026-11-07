@@ -60,6 +60,10 @@ public class MadKillerAbility : AbilityBase
         Player.AttachAbility(_visionAbility, parentAbility);
         Player.AttachAbility(_knowImpostorAbility, parentAbility);
         Player.AttachAbility(_killButtonAbility, parentAbility);
+        if (AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
+            && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && SuperNewRoles.Mode.ShrPlayerOptions.IsVanillaGuest(Player.Player))
+            SubscribeWithAbility(FixedUpdateEvent.Instance, OnFixedUpdate);
     }
     public override void AttachToLocalPlayer()
     {
@@ -122,6 +126,14 @@ public class MadKillerAbility : AbilityBase
         // 受信側でも覚醒状態を共有する。名前色や試合終了判定がローカルだけ進むのを防ぐ。
         if (ability != null)
             ability._isAwakened = true;
+        if (AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
+            && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && SuperNewRoles.Mode.ShrPlayerOptions.IsVanillaGuest(player.Player))
+        {
+            SuperNewRoles.Mode.ShrTestRoleAbility.SetSelfRole(player.Player, RoleTypes.Impostor);
+            SuperNewRoles.Mode.ShrPlayerOptions.Send(player.Player,
+                killCooldown: SuperNewRoles.Mode.ShrKillRequests.RemainingCooldown(player.Player), resetKill: true);
+        }
         NameText.UpdateAllNameInfo();
     }
 

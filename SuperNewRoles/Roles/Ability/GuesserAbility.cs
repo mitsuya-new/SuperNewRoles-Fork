@@ -52,6 +52,76 @@ public class GuesserAbility : CustomMeetingButtonBase, IAbilityCount
         base.AttachToLocalPlayer();
         SubscribeWithAbility(DieEvent.Instance, OnPlayerDie);
     }
+
+    public override void AttachToAlls()
+    {
+        base.AttachToAlls();
+        if (AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
+            && Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && !Player.AmOwner)
+        {
+            SubscribeWithAbility(DieEvent.Instance, OnPlayerDie);
+            SubscribeWithAbility(MeetingStartEvent.Instance, _ => ResetMeetingState());
+        }
+    }
+
+    private void ResetMeetingState()
+    {
+        if (!anyoneDied && ExPlayerControl.ExPlayerControls.Any(x => x.IsDead())) anyoneDied = true;
+        ShotThisMeeting = 0;
+        MeetingCount++;
+    }
+
+    internal bool TryShootFromCommand(ExPlayerControl target, RoleId guessedRole, out string error)
+    {
+        error = null;
+        var meeting = MeetingHud.Instance;
+        if (meeting == null || !(meeting.state is MeetingHud.MeetingStates.Discussion
+            or MeetingHud.MeetingStates.NotVoted or MeetingHud.MeetingStates.Voted)) error = "今は撃てません。";
+        else if (Player.IsDead() || target == null || target == Player || target.IsDead() || target.Data.Disconnected)
+            error = "自分以外の生存者を指定してください。";
+        else if (!HasCount) error = "弾が残っていません。";
+        else if (ShotThisMeeting >= shotsPerMeeting) error = "この会議で撃てる回数に達しています。";
+        else if (CannotShootThisMeeting(target)) error = "この会議では、その対象を撃てない設定です。";
+        else if (!CanGuessRole(guessedRole)) error = "その役職は指定できません。";
+        if (error != null) return false;
+
+        this.UseAbilityCount();
+        RecordShot();
+        bool suicide = madmateSuicide && (Player.IsMadRoles() || Player.IsFriendRoles());
+        bool misfire = target.Role != guessedRole;
+        var victim = suicide || misfire ? Player : target;
+        RpcShotGuesser(Player.Player, victim, suicide, misfire);
+        return true;
+    }
+
+    private bool CanGuessRole(RoleId role)
+    {
+        if (role == RoleId.Crewmate) return !cannotShootCrewmate;
+        if (role == RoleId.Impostor) return true;
+        if (role == RoleId.Celebrity && cannotShootCelebrity
+            && (!CelebrityLimitedTurns || MeetingCount < CelebrityLimitedTurnsCount)) return false;
+        return RoleOptionManager.TryGetRoleOption(role, out var option)
+            && option.NumberOfCrews > 0 && option.Percentage > 0;
+    }
+
+    private void RecordShot()
+    {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) RpcRecordShot(Player, AbilityId);
+        else ShotThisMeeting++;
+    }
+
+    [CustomRPC]
+    public static void RpcRecordShot(ExPlayerControl player, ulong abilityId)
+    {
+        if (!Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return;
+        var ability = player?.GetAbility<GuesserAbility>(abilityId);
+        if (ability == null) return;
+        ability.ShotThisMeeting++;
+        if (ability.limitText != null)
+            ability.limitText.text = ModTranslation.GetString("GuesserLimitText", ability.Count,
+                Math.Min(ability.maxShots, ability.shotsPerMeeting) - ability.ShotThisMeeting);
+    }
     private void OnPlayerDie(DieEventData data)
     {
         anyoneDied = true;
@@ -89,8 +159,7 @@ public class GuesserAbility : CustomMeetingButtonBase, IAbilityCount
         if (guesserUI != null)
             GameObject.Destroy(guesserUI);
         guesserUI = null;
-        ShotThisMeeting = 0;
-        MeetingCount++;
+        ResetMeetingState();
 
         // 残り使用回数を表示するテキストを作成
         if (Player.IsDead()) return;
@@ -383,8 +452,10 @@ public class GuesserAbility : CustomMeetingButtonBase, IAbilityCount
                               meetingHud.state == MeetingHud.MeetingStates.NotVoted ||
                               meetingHud.state == MeetingHud.MeetingStates.Discussion) || exPlayer == null)
                             return;
+                        if (!HasCount || ShotThisMeeting >= shotsPerMeeting || CannotShootThisMeeting(exPlayer))
+                            return;
                         this.UseAbilityCount();
-                        this.ShotThisMeeting++;
+                        RecordShot();
 
                         // 残り使用回数を更新
                         if (limitText != null)
@@ -564,6 +635,7 @@ public class GuesserAbility : CustomMeetingButtonBase, IAbilityCount
         if (killer == null || dyingTarget == null)
             return;
         if (dyingTarget == null) return;
+        Mode.ShrGuesserCommands.SendVanillaShot(killer, dyingTarget);
         dyingTarget.Player.Exiled();
 
         if (isMisFire || isSuicide)
@@ -588,6 +660,12 @@ public class GuesserAbility : CustomMeetingButtonBase, IAbilityCount
                     pva.Overlay.gameObject.SetActive(true);
                 }
                 pva.UnsetVote();
+            }
+            if (AmongUsClient.Instance.AmHost && Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+            {
+                MeetingHud.Instance.SetDirtyBit(uint.MaxValue);
+                foreach (var pva in MeetingHud.Instance.playerStates)
+                    MeetingHud.Instance.RpcClearVote(pva.PlayerId);
             }
             MeetingHud.Instance.ClearVote(PlayerControl.LocalPlayer.PlayerId, true);
             if (AmongUsClient.Instance.AmHost)

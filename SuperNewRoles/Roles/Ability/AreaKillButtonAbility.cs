@@ -68,10 +68,15 @@ public class AreaKillButtonAbility : CustomButtonBase
 
     public override void OnClick()
     {
-        if (!CanKill()) return;
+        TryUseAreaKill();
+    }
+
+    public bool TryUseAreaKill(bool invokeCallback = true)
+    {
+        if (IsUsed || !CanKill()) return false;
 
         var killedPlayers = new List<ExPlayerControl>();
-        var localPlayer = ExPlayerControl.LocalPlayer;
+        var localPlayer = Player;
         var radius = KillRadius();
         var maxKills = MaxKillCount?.Invoke() ?? 0;
         var onlyCrewmates = OnlyCrewmatesValue?.Invoke() ?? true;
@@ -111,7 +116,8 @@ public class AreaKillButtonAbility : CustomButtonBase
         IsUsed = true;
         RpcAreaKill(killedPlayers, CustomDeathType);
         ResetTimer();
-        Callback?.Invoke();
+        if (invokeCallback) Callback?.Invoke();
+        return true;
     }
 
     [CustomRPC]

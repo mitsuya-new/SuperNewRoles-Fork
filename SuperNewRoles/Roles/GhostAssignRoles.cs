@@ -24,6 +24,7 @@ public class GhostAssignRole
     }
     public static bool Prefix([HarmonyArgument(0)] PlayerControl player, bool specialRolesAllowed)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return true;
         ExPlayerControl exPlayer = player;
         
         // バスカーが偽装死を使っている場合は処理をスキップ
@@ -42,6 +43,7 @@ public class GhostAssignRole
 
     public static void Postfix([HarmonyArgument(0)] PlayerControl player)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return;
         ExPlayerControl exPlayer = player;
         
         // バスカーが偽装死を使っている場合は幽霊役職を配布しない

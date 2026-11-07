@@ -133,6 +133,12 @@ public static class CustomDeathExtensions
                 MurderDataManager.AddMurderData(source, player);
                 break;
             case CustomDeathType.Samurai:
+                if (ModeManager.IsMode(ModeId.SuperHostRoles))
+                {
+                    if (AmongUsClient.Instance.AmHost)
+                        ShrMurderSync.Murder(source, player, explosion: true, finalStatus: FinalStatus.Samurai);
+                    break;
+                }
                 if (!TryKillEvent.Invoke(source, ref player).RefSuccess)
                     break;
                 if (IsProtectedByGuardianThisRound(player))

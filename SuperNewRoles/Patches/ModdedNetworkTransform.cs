@@ -611,6 +611,7 @@ public static class ModdedNetworkTransform
             => ShipStatus.Instance != null && lastShipStatusInstanceId == ShipStatus.Instance.GetInstanceID() ? IsVanillaServerCache : (IsVanillaServerCache = AmongUsClient.Instance.NetworkMode != NetworkModes.LocalGame && !ModHelpers.IsCustomServer());
         public static bool Prefix(CustomNetworkTransform __instance)
         {
+            if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return true;
             // 開始時のみ
             if (AmongUsClient.Instance.GameState != InnerNet.InnerNetClient.GameStates.Started) return true;
             if (IsVanillaServer()) return true;
