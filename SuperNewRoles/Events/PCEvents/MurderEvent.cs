@@ -66,6 +66,12 @@ public static class TryKillPatch
         }
         if (!didSucceed)
             return true;
+        if (AmongUsClient.Instance != null && ShrMurderSync.UsesVanillaResult(
+            CustomOptions.Categories.Categories.ModeOption, AmongUsClient.Instance.AmHost))
+        {
+            ShrMurderSync.Murder(__instance, target);
+            return false;
+        }
         CustomDeathExtensions.RpcCustomDeath(source: __instance, target: target, deathType: CustomDeathType.Kill);
         return false;
     }

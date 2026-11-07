@@ -353,7 +353,10 @@ public static class CustomRPCManager
         {
             // 受信処理から呼ばれた元メソッド自身の再送だけを防ぐ。
             // 別の RPC の受信後や、受信処理中に発生した別 RPC は送信する。
-            if (TryConsumeReceivedRpc(__originalMethod))
+            bool received = TryConsumeReceivedRpc(__originalMethod);
+            if (SuperNewRoles.Mode.ShrVanillaRpcRouter.TryRoute(__originalMethod, __args, received))
+                return false;
+            if (received)
                 return true;
 
             SendRpc(__originalMethod, __instance, __args);
@@ -386,7 +389,10 @@ public static class CustomRPCManager
         if (!WovenRpcEnabled)
             return true;
         var method = RpcMethods[id];
-        if (TryConsumeReceivedRpc(method))
+        bool received = TryConsumeReceivedRpc(method);
+        if (SuperNewRoles.Mode.ShrVanillaRpcRouter.TryRoute(method, args, received))
+            return false;
+        if (received)
             return true;
         SendRpc(method, instance, args);
         return !OnlyOtherFlagsByMethod[method];
@@ -398,9 +404,27 @@ public static class CustomRPCManager
     internal static void SendRpc(MethodBase method, object? instance, object[] args)
     {
         // RPC ID をキャッシュから取得
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            foreach (var peer in AmongUsClient.Instance.allClients.ToArray())
+            {
+                if (peer.Character == null || peer.Character.AmOwner || peer.Character.Data == null || peer.Character.Data.Disconnected) continue;
+                byte id = peer.Character.PlayerId;
+                if (!SyncVersion.VersionData.VersionMap.ContainsKey(id) ||
+                    !SyncVersion.VersionData.IsError.TryGetValue(id, out var error) ||
+                    error != SyncErrorType.NotMismatch) continue;
+                SendRpcTo(method, instance, args, peer.Id);
+            }
+            return;
+        }
+        SendRpcTo(method, instance, args, -1);
+    }
+
+    internal static void SendRpcTo(MethodBase method, object? instance, object[] args, int targetClientId)
+    {
         var rpcId = RpcIdsByMethod[method];
         // RPC送信の準備
-        var writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, SNRRpcId, SendOption.Reliable, -1);
+        var writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, SNRRpcId, SendOption.Reliable, targetClientId);
         int payloadStart = writer.Position;
         writer.Write(rpcId);
 

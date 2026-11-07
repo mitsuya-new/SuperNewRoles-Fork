@@ -46,7 +46,7 @@ public class CustomTaskAbility : AbilityBase, IPrioritizedAbility
         CustomTaskTypeAbility customTaskTypeAbility = null)
     {
         // ローカルプレイヤーでない場合は処理しない（各プレイヤーが自分自身のタスクのみを設定するようにする）
-        if (player == null || !player.AmOwner) return;
+        if (player == null || (!player.AmOwner && !SuperNewRoles.Mode.ShrVanillaRpcRouter.CanAssignTasks(player))) return;
 
         if (taskOptions != null && taskOptions.Total <= 0)
         {
@@ -56,6 +56,7 @@ public class CustomTaskAbility : AbilityBase, IPrioritizedAbility
 
         if (customTaskTypeAbility != null && !customTaskTypeAbility.ShouldChangeTask())
         {
+            if (!player.AmOwner) return;
             int all = taskOptions?.Total ?? player.GetAllTaskForShowProgress().all;
             customTaskTypeAbility.AssignTasks(all);
             return;
