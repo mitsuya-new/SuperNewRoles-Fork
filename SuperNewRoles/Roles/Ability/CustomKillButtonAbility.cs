@@ -86,15 +86,18 @@ public class CustomKillButtonAbility : TargetCustomButtonBase
 
     public override void OnClick()
     {
-        if (Target == null) return;
-        if (!CanKill()) return;
-        PlayerControl target = Target;
+        TryKillTarget(Target);
+    }
+
+    public virtual bool TryKillTarget(ExPlayerControl target)
+    {
+        if (target == null || !CanKill()) return false;
         bool customKilled = _customKillHandler?.Invoke(target) ?? false;
         if (!customKilled)
         {
             byte targetId = ((ExPlayerControl)target).PlayerId;
             _pendingTargetId = targetId;
-            ExPlayerControl.LocalPlayer.RpcCustomDeath(target, CustomDeathType.Kill);
+            Player.RpcCustomDeath(target, CustomDeathType.Kill);
             // RpcCustomDeath executes locally before returning. If TryKillEvent cancelled
             // the action, no MurderEvent is raised and there must be no stale callback target.
             if (_pendingTargetId == targetId)
@@ -102,6 +105,7 @@ public class CustomKillButtonAbility : TargetCustomButtonBase
         }
         ResetTimer();
         OnCooldownStarted?.Invoke(DefaultTimer);
+        return true;
     }
 
     public override bool CheckIsAvailable()

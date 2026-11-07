@@ -160,26 +160,31 @@ public class SheriffAbility : CustomKillButtonAbility, IAbilityCount
 
     public override void OnClick()
     {
-        if (Target == null) return;
-        if (!CanKill()) return;
+        TryKillTarget(Target);
+    }
+
+    public override bool TryKillTarget(ExPlayerControl target)
+    {
+        if (target == null || !CanKill() || !HasCount) return false;
 
         this.UseAbilityCount();
 
-        var canKill = SheriffAbilityData.CanKill(PlayerControl.LocalPlayer, Target);
+        var canKill = SheriffAbilityData.CanKill(Player.Player, target);
         var isSuicide = SheriffAbilityData.IsSuicide(canKill, out FinalStatus suicideReason);
 
         if (canKill || SheriffAbilityData.IsAlwaysKilling) // 殺害処理
         {
-            ExPlayerControl.LocalPlayer.RpcCustomDeath(Target, CustomDeathType.Kill);
-            FinalStatusManager.RpcSetFinalStatus(Target, canKill ? FinalStatus.SheriffKill : FinalStatus.SheriffWrongfulMurder);
+            Player.RpcCustomDeath(target, CustomDeathType.Kill);
+            FinalStatusManager.RpcSetFinalStatus(target, canKill ? FinalStatus.SheriffKill : FinalStatus.SheriffWrongfulMurder);
         }
 
         if (isSuicide && suicideReason != FinalStatus.Alive) // 自害処理
         {
-            ExPlayerControl.LocalPlayer.RpcCustomDeath(ExPlayerControl.LocalPlayer, CustomDeathType.Suicide);
-            FinalStatusManager.RpcSetFinalStatus(ExPlayerControl.LocalPlayer, suicideReason);
+            Player.RpcCustomDeath(Player, CustomDeathType.Suicide);
+            FinalStatusManager.RpcSetFinalStatus(Player, suicideReason);
         }
         ResetTimer();
+        return true;
     }
 }
 
