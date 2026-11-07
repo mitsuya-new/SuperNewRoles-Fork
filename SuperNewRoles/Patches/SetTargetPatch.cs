@@ -28,9 +28,16 @@ public static class SetTargetPatch
         if (player.IsImpostor())
             return false;
         if (player.Role == Roles.RoleId.MadKiller)
-            return SideKiller.CannotSeeMadKillerBeforePromotion;
+            return !IsMadKillerTeammate(true, player.Role,
+                player.GetAbility<MadKillerAbility>()?.IsAwakened == true, SideKiller.CannotSeeMadKillerBeforePromotion);
         return true;
     }
+    internal static bool IsMadKillerTeammate(bool killerIsImpostor, Roles.RoleId targetRole, bool awakened, bool hideBeforePromotion)
+        => killerIsImpostor && targetRole == Roles.RoleId.MadKiller && (awakened || !hideBeforePromotion);
+    internal static bool IsMadKillerTeammate(ExPlayerControl killer, ExPlayerControl target)
+        => killer != null && target != null
+            && IsMadKillerTeammate(killer.roleBase?.AssignedTeam == Roles.AssignedTeamType.Impostor, target.Role,
+                target.GetAbility<MadKillerAbility>()?.IsAwakened == true, SideKiller.CannotSeeMadKillerBeforePromotion);
     public static ExPlayerControl SetImpostorTarget()
     {
         if (ExPlayerControl.LocalPlayer != null &&

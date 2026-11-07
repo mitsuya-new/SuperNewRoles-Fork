@@ -25,11 +25,15 @@ public static class SHRRoleTypes
             or RoleId.EvilSeer or RoleId.Finder or RoleId.Mafia or RoleId.NekoKabocha
             or RoleId.OverKiller or RoleId.Pursuer or RoleId.VampireDependent
             or RoleId.Impostor or RoleId.Sheriff => RoleTypes.Impostor,
-        RoleId.MadKiller or RoleId.Tasker => RoleTypes.Crewmate,
+        RoleId.MadKiller => GetMadKillerRole(SideKiller.MadKillerCanUseVent),
+        RoleId.Tasker => RoleTypes.Crewmate,
         RoleId.Vampire => GetVampireRole(Vampire.VampireCreateDependents),
         _ => null,
     };
 
     internal static RoleTypes GetVampireRole(bool canCreateDependents)
         => canCreateDependents ? RoleTypes.Phantom : RoleTypes.Impostor;
+
+    internal static RoleTypes GetMadKillerRole(bool canUseVent)
+        => canUseVent ? RoleTypes.Engineer : RoleTypes.Crewmate;
 }

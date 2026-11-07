@@ -30,16 +30,17 @@ public static class SHRAbilityTriggerPatches
             && !player.inVent && !player.walkingToVent && !player.onLadder && !player.inMovingPlat
             && !(ShipStatus.Instance?.TryCast<FungleShipStatus>()?.Zipline?.playerIdHands.ContainsKey(player.PlayerId) == true);
 
-    private static void Activate(PlayerControl player, SHRAbilityTriggerAbility ability, SHRAbilityTrigger source,
+    private static bool Activate(PlayerControl player, SHRAbilityTriggerAbility ability, SHRAbilityTrigger source,
         PlayerControl target = null)
     {
-        if (!CanActivate(player)) return;
+        if (!CanActivate(player)) return false;
         try
         {
             bool accepted = ability.TryActivate(source, Time.unscaledTime, target);
             Logger.Debug($"Trigger player={player.PlayerId} source={source} accepted={accepted} remaining={ability.RemainingCooldown(Time.unscaledTime)}", "SHR.Controls");
+            return accepted;
         }
-        catch (Exception ex) { Logger.Error($"SHR {source} trigger failed for {player.PlayerId}: {ex}"); }
+        catch (Exception ex) { Logger.Error($"SHR {source} trigger failed for {player.PlayerId}: {ex}"); return false; }
     }
 
     [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.TryPet))]
@@ -118,8 +119,12 @@ public static class SHRAbilityTriggerPatches
         Logger.Debug($"Phantom received player={player.PlayerId} handler={ability != null} allowed={CanActivate(player)}", "SHR.Controls");
         if (ability == null) return true;
         if (!CanActivate(player) || !ability.TryConsumeInput(Time.unscaledTime)) return false;
-        Activate(player, ability, SHRAbilityTrigger.Phantom);
-        if (CanActivate(player)) ResetPhantomButton(player, ability.RemainingCooldown(Time.unscaledTime));
+        bool accepted = Activate(player, ability, SHRAbilityTrigger.Phantom);
+        if (CanActivate(player))
+        {
+            if (accepted) ResetPhantomButton(player, ability.RemainingCooldown(Time.unscaledTime));
+            else SHRPlayerOptions.Send(player, abilityCooldown: ability.RemainingCooldown(Time.unscaledTime), resetAbility: true);
+        }
         return false;
     }
 

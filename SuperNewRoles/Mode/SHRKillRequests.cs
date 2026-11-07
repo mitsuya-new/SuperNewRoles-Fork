@@ -62,7 +62,8 @@ public static class SHRKillRequests
         if (!SHRAbilityTriggerPatches.CanActivate(__instance)) rejection = "actor unavailable";
         else if (target == null || target == __instance || target.Data == null || target.Data.IsDead
             || target.Data.Disconnected || target.inVent || target.onLadder || target.inMovingPlat) rejection = "target unavailable";
-        else if (!permitted || (ability?.IsTargetable?.Invoke(victim) == false)
+        else if (!permitted || SuperNewRoles.Patches.SetTargetPatch.IsMadKillerTeammate(killer, victim)
+            || (ability?.IsTargetable?.Invoke(victim) == false)
             || ((ability == null || ability.OnlyCrewmates) && target.Data.Role.IsImpostor)) rejection = "role permission";
         else if (SHRWaveCannonController.IsProtected(victim)) rejection = "wave cannon protection";
         else if (ReadyAt.TryGetValue(__instance.PlayerId, out float ready) && Time.unscaledTime < ready) rejection = "cooldown";

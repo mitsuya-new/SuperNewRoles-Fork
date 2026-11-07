@@ -48,7 +48,11 @@ public static class CustomDeathExtensions
             case CustomDeathType.Kill:
                 if (source == null)
                     throw new Exception("Source is null");
+                if (Patches.SetTargetPatch.IsMadKillerTeammate(source, player))
+                    break;
                 if (!TryKillEvent.Invoke(source, ref player).RefSuccess)
+                    break;
+                if (Patches.SetTargetPatch.IsMadKillerTeammate(source, player))
                     break;
                 MurderResultFlags resultFlags = GetNormalKillResultFlags(source, player);
                 source.Player.MurderPlayer(player.Player, resultFlags);

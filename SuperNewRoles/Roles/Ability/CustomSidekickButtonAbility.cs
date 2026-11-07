@@ -107,6 +107,13 @@ public class CustomSidekickButtonAbility : TargetCustomButtonBase
                 _options.SidekickedPromoteData?.PromoteToRoleVanilla,
                 _options.SidekickedPromoteData?.CanPromotedRoleCreateSidekick ?? true
             ));
+            if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+                && Player.Role == RoleId.SideKiller
+                && (target.Role != RoleId.MadKiller || target.GetAbility<MadKillerAbility>() == null))
+            {
+                Logger.Error($"MadKiller creation was not applied: owner={Player.PlayerId} target={target.PlayerId} role={target.Role}");
+                return false;
+            }
         }
         _options.OnSidekickCreated?.Invoke(target);
         _sidekickCreated = true;
@@ -157,6 +164,8 @@ public class CustomSidekickButtonAbility : TargetCustomButtonBase
         }
         if (data.IsVanilla)
             RoleManager.Instance.SetRole(player, data.RoleType);
+        if (data.RoleId == RoleId.MadKiller)
+            SuperNewRoles.Mode.SHRMadKillerSupport.OnCreated(player);
         NameText.UpdateAllNameInfo();
     }
 }

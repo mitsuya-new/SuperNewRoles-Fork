@@ -92,6 +92,7 @@ public class CustomKillButtonAbility : TargetCustomButtonBase
     public virtual bool TryKillTarget(ExPlayerControl target)
     {
         if (target == null || !CanKill()) return false;
+        if (SuperNewRoles.Patches.SetTargetPatch.IsMadKillerTeammate(Player, target)) return false;
         bool customKilled = _customKillHandler?.Invoke(target) ?? false;
         if (!customKilled)
         {

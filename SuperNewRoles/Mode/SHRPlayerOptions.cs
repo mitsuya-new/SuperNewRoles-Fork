@@ -27,6 +27,7 @@ public static class SHRPlayerOptions
         RoleId.Samurai => Samurai.SamuraiKillCooldown,
         RoleId.WaveCannon => WaveCannon.WaveCannonCooldown,
         RoleId.SerialKiller => player.GetAbility<SuicideTimerAbility>()?.NativeCooldown ?? 0f,
+        RoleId.SideKiller => SideKiller.SideKillerKillCooldown,
         _ => 0f,
     };
 
@@ -44,11 +45,25 @@ public static class SHRPlayerOptions
         var options = factory.FromBytes(factory.ToBytes(manager.LogicOptions.currentGameOptions,
             AprilFoolsMode.IsAprilFoolsModeToggledOn));
         ExPlayerControl ex = player;
+        if (ex.Role == RoleId.MadKiller && ShipStatus.Instance != null)
+        {
+            float light = SHRMadKillerSupport.LightFraction();
+            float radius = UnityEngine.Mathf.Lerp(ShipStatus.Instance.MinLightRadius, ShipStatus.Instance.MaxLightRadius, light);
+            bool impostorVision = ex.HasImpostorVision();
+            if (impostorVision)
+                options.SetFloat(FloatOptionNames.CrewLightMod, options.GetFloat(FloatOptionNames.ImpostorLightMod)
+                    * ShipStatus.Instance.MaxLightRadius / UnityEngine.Mathf.Max(0.001f, radius));
+            else
+                options.SetFloat(FloatOptionNames.ImpostorLightMod, options.GetFloat(FloatOptionNames.CrewLightMod)
+                    * radius / UnityEngine.Mathf.Max(0.001f, ShipStatus.Instance.MaxLightRadius));
+            options.SetFloat(FloatOptionNames.EngineerCooldown, 0.001f);
+            options.SetFloat(FloatOptionNames.EngineerInVentMaxTime, 0f);
+        }
         if (ex.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true) playerSpeed = 0.0001f;
         if (playerSpeed.HasValue) options.SetFloat(FloatOptionNames.PlayerSpeedMod, playerSpeed.Value);
         float kill = UnityEngine.Mathf.Max(0.001f, killCooldown ?? KillCooldown(ex));
         options.SetFloat(FloatOptionNames.KillCooldown, resetKill ? kill * 2f : kill);
-        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon)
+        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SideKiller)
             options.SetFloat(FloatOptionNames.PhantomCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
         if (ex.Role == RoleId.SerialKiller)
             options.SetFloat(FloatOptionNames.ShapeshifterCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));

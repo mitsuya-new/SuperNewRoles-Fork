@@ -25,6 +25,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
     private static bool roundReady;
     internal bool SidekickCompleted { get; private set; }
     internal bool PhantomAbilityCompleted => SidekickCompleted
+        || (Player.Role == RoleId.SideKiller && Player.GetAbility<SideKillerAbility>()?.madKillerAbility != null)
         || (Player.Role == RoleId.Samurai && Player.GetAbility<AreaKillButtonAbility>()?.IsUsed == true);
     internal bool TaskerImpostor { get; private set; }
     private bool grantedPet;
@@ -38,6 +39,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         RoleId.Samurai => SHRAbilityTrigger.Phantom,
         RoleId.WaveCannon => SHRAbilityTrigger.Phantom,
         RoleId.Jackal => SHRAbilityTrigger.Phantom,
+        RoleId.SideKiller => SHRAbilityTrigger.Phantom,
         RoleId.Tasker => SHRAbilityTrigger.Pet,
         _ => 0,
     };
@@ -68,12 +70,22 @@ public sealed class SHRTestRoleAbility : AbilityBase
             RoleId.Samurai => Samurai.SamuraiKillCooldown,
             RoleId.WaveCannon => WaveCannon.WaveCannonCooldown,
             RoleId.Jackal => Player.GetAbility<JackalAbility>()?.JackData.SidekickCooldown ?? 0f,
+            RoleId.SideKiller => SideKiller.SideKillerKillCooldown,
             _ => 0f,
         };
         var trigger = new SHRAbilityTriggerAbility(TriggerFor(Player.Role), _ => Use(),
             CanUse, cooldown);
         Player.AttachAbility(trigger, new AbilityParentAbility(this));
         SubscribeWithAbility(WrapUpEvent.Instance, _ => ResetInitialCooldown(cooldown));
+        if (Player.Role == RoleId.SideKiller)
+            SubscribeWithAbility(MurderEvent.Instance, data =>
+            {
+                if (data.killer != Player || data.target == null || data.target == Player || !data.target.IsDead()
+                    || !data.resultFlags.HasFlag(MurderResultFlags.Succeeded) || PhantomAbilityCompleted) return;
+                readyAt = Time.unscaledTime + cooldown;
+                trigger.ResetCooldown(Time.unscaledTime, cooldown);
+                SHRPlayerOptions.Send(Player.Player, abilityCooldown: cooldown, resetAbility: true);
+            });
         SubscribeWithAbility(IntroCutsceneInitializeEvent.Instance, () =>
         {
             roundReady = true;
@@ -97,8 +109,9 @@ public sealed class SHRTestRoleAbility : AbilityBase
     private bool CanUse()
     {
         bool ready = configured && Time.unscaledTime >= readyAt && Player.IsAlive();
-        var target = Player.Role == RoleId.Jackal && ready ? FindSidekickTarget() : null;
-        bool available = ready && (Player.Role != RoleId.Jackal || target != null);
+        bool needsTarget = Player.Role is RoleId.Jackal or RoleId.SideKiller;
+        var target = needsTarget && ready ? FindSidekickTarget() : null;
+        bool available = ready && (!needsTarget || (!PhantomAbilityCompleted && target != null));
         if (Player.Role == RoleId.Samurai)
             available &= Player.GetAbility<AreaKillButtonAbility>() is { IsUsed: false } area && area.CanKill();
         if (Player.Role == RoleId.WaveCannon)
@@ -109,7 +122,9 @@ public sealed class SHRTestRoleAbility : AbilityBase
 
     private ExPlayerControl FindSidekickTarget()
     {
-        var sidekick = Player.GetAbility<JackalAbility>()?.SidekickAbility;
+        var sidekick = Player.Role == RoleId.SideKiller
+            ? Player.GetAbility<SideKillerAbility>()?.SidekickAbility
+            : Player.GetAbility<JackalAbility>()?.SidekickAbility;
         if (sidekick == null) return null;
         return TargetCustomButtonBase.SetTarget(targetingPlayer: Player.Player,
             isTargetable: sidekick.CanCreateSidekickFor);
@@ -119,6 +134,15 @@ public sealed class SHRTestRoleAbility : AbilityBase
     {
         switch (Player.Role)
         {
+            case RoleId.SideKiller:
+                var madKillerTarget = FindSidekickTarget();
+                if (madKillerTarget != null && Player.GetAbility<SideKillerAbility>().SidekickAbility.TryCreateSidekick(madKillerTarget))
+                {
+                    SidekickCompleted = true;
+                    SetSelfRole(Player.Player, RoleTypes.Impostor);
+                    SHRKillRequests.SetRemainingCooldown(Player.Player, SideKiller.SideKillerKillCooldown);
+                }
+                break;
             case RoleId.WaveCannon:
                 Player.GetAbility<WaveCannonAbility>()?.SHRController?.TryStart();
                 break;
@@ -196,6 +220,10 @@ public sealed class SHRTestRoleAbility : AbilityBase
                 SetSelfRole(Player.Player, RoleTypes.Phantom);
                 ResetInitialCooldown(Player.GetAbility<JackalAbility>().JackData.SidekickCooldown);
                 break;
+            case RoleId.SideKiller:
+                SetSelfRole(Player.Player, RoleTypes.Phantom);
+                ResetInitialCooldown(SideKiller.SideKillerKillCooldown);
+                break;
         }
     }
 
@@ -212,7 +240,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         SendRoleView(subject, subject, role);
     }
 
-    private static void SendRoleView(PlayerControl subject, PlayerControl viewer, RoleTypes role)
+    internal static void SendRoleView(PlayerControl subject, PlayerControl viewer, RoleTypes role)
     {
         if (viewer.AmOwner) return;
         int id = AmongUsClient.Instance.GetClientIdFromCharacter(viewer);
@@ -227,7 +255,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         Logger.Debug($"Role view sent subject={subject.PlayerId} viewer={viewer.PlayerId} client={id} role={role}", "SHR.Controls");
     }
 
-    private static void SendRoleToAll(PlayerControl subject, RoleTypes role)
+    internal static void SendRoleToAll(PlayerControl subject, RoleTypes role)
     {
         var writer = AmongUsClient.Instance.StartRpcImmediately(subject.NetId, (byte)RpcCalls.SetRole, SendOption.Reliable, -1);
         new RpcSetRoleMessage(subject.NetId, role, true).SerializeRpcValues(writer);

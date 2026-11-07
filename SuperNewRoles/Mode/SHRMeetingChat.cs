@@ -101,7 +101,7 @@ public static class SHRMeetingChat
                 ((ExPlayerControl)viewer).Role, true, originalRole.IsImpostor);
             if (viewer.PlayerId == subject.PlayerId)
             {
-                if (ex.Role is RoleId.Jackal or RoleId.Samurai && ex.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true)
+                if (ex.Role is RoleId.Jackal or RoleId.Samurai or RoleId.SideKiller && ex.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true)
                     role = AmongUs.GameOptions.RoleTypes.Impostor;
                 if (ex.Role == RoleId.Tasker && ex.GetAbility<SHRTestRoleAbility>()?.TaskerImpostor == true)
                     role = AmongUs.GameOptions.RoleTypes.Impostor;

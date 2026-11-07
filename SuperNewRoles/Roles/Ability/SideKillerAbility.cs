@@ -22,6 +22,7 @@ public class SideKillerAbility : AbilityBase
     private readonly SideKillerData _data;
     private CustomKillButtonAbility _killAbility;
     private CustomSidekickButtonAbility _sidekickAbility;
+    public CustomSidekickButtonAbility SidekickAbility => _sidekickAbility;
     private KnowOtherAbility _knowOtherAbility;
     public MadKillerAbility madKillerAbility;
 

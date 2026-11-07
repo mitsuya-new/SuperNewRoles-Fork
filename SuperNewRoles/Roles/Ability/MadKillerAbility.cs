@@ -22,6 +22,7 @@ public class MadKillerAbility : AbilityBase
 {
     private MadKillerData _data;
     public bool IsAwakened => _isAwakened;
+    public bool CanUseVent => _data.couldUseVent;
     private bool _isAwakened;
     private CustomVentAbility _ventAbility;
     private ImpostorVisionAbility _visionAbility;
@@ -62,7 +63,7 @@ public class MadKillerAbility : AbilityBase
         Player.AttachAbility(_killButtonAbility, parentAbility);
         if (AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
             && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
-            && SuperNewRoles.Mode.SHRPlayerOptions.IsVanillaGuest(Player.Player))
+            && !Player.AmOwner)
             SubscribeWithAbility(FixedUpdateEvent.Instance, OnFixedUpdate);
     }
     public override void AttachToLocalPlayer()
@@ -112,10 +113,30 @@ public class MadKillerAbility : AbilityBase
     private void Awaken()
     {
         if (_isAwakened || Player.IsDead()) return;
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && AmongUsClient.Instance?.AmHost != true) return;
         // 送信前に立てて、同フレームの FixedUpdate 再入で二重送信しない。
         _isAwakened = true;
         RpcMadkillerAwaken(Player);
     }
+
+    internal void AwakenForOwnerExile(byte exiledId)
+    {
+        if (TryGetOwnerPlayer(out var owner)
+            && ShouldAwakenForExile(_isAwakened, Player.IsAlive(), Player.PlayerId, owner?.PlayerId, exiledId,
+                owner?.IsDead() == true))
+            Awaken();
+    }
+
+    internal void PrepareOwnerExile(byte exiledId)
+    {
+        if (!_isAwakened && Player.IsAlive() && Player.PlayerId != exiledId
+            && TryGetOwnerPlayer(out var owner) && owner?.PlayerId == exiledId)
+            SuperNewRoles.Mode.SHRMadKillerSupport.SendAwakenedRole(Player);
+    }
+
+    internal static bool ShouldAwakenForExile(bool awakened, bool alive, byte playerId, byte? ownerId, byte exiledId, bool ownerDead)
+        => ownerDead && !awakened && alive && playerId != exiledId && ownerId == exiledId;
 
     [CustomRPC]
     public static void RpcMadkillerAwaken(ExPlayerControl player)
@@ -127,10 +148,9 @@ public class MadKillerAbility : AbilityBase
         if (ability != null)
             ability._isAwakened = true;
         if (AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
-            && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
-            && SuperNewRoles.Mode.SHRPlayerOptions.IsVanillaGuest(player.Player))
+            && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
         {
-            SuperNewRoles.Mode.SHRTestRoleAbility.SetSelfRole(player.Player, RoleTypes.Impostor);
+            SuperNewRoles.Mode.SHRMadKillerSupport.SendAwakenedRole(player);
             SuperNewRoles.Mode.SHRPlayerOptions.Send(player.Player,
                 killCooldown: SuperNewRoles.Mode.SHRKillRequests.RemainingCooldown(player.Player), resetKill: true);
         }

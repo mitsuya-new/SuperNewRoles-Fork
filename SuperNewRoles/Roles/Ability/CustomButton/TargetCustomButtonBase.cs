@@ -163,6 +163,9 @@ public abstract class TargetCustomButtonBase : CustomButtonBase
                 continue;
             if (isTargetable != null && !isTargetable(playerInfo))
                 continue;
+            if (onlyCrewmates && SuperNewRoles.Patches.SetTargetPatch.IsMadKillerTeammate(
+                (ExPlayerControl)targetingPlayer, (ExPlayerControl)playerInfo))
+                continue;
             PlayerControl @object = playerInfo.Object;
             if (untargetablePlayers != null &&
                 untargetablePlayers.Any(x => x == @object))

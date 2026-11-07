@@ -22,9 +22,13 @@ public static class SHRMurderSync
             || target.Data.Disconnected || target.Data.IsDead) return;
 
         bool suicide = source == target;
+        if (!suicide && !explosion && !finalStatus.HasValue
+            && Patches.SetTargetPatch.IsMadKillerTeammate(source, target)) return;
         if (SHRWaveCannonController.BlocksAttack(SHRWaveCannonController.IsProtected(target), suicide, CustomDeathType.Kill)) return;
         if (!suicide && !TryKillEvent.Invoke(source, ref target).RefSuccess) return;
         if (target?.Player == null || target.Data == null || target.Data.Disconnected || target.Data.IsDead) return;
+        if (source != target && !explosion && !finalStatus.HasValue
+            && Patches.SetTargetPatch.IsMadKillerTeammate(source, target)) return;
         if (SHRWaveCannonController.BlocksAttack(SHRWaveCannonController.IsProtected(target), source == target, CustomDeathType.Kill)) return;
         var flags = ResultFlags(!suicide && target.Player.protectedByGuardianThisRound);
         PlayerControl actor = explosion ? target.Player : source.Player;

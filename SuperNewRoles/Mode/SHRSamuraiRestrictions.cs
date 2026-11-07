@@ -10,7 +10,7 @@ namespace SuperNewRoles.Mode;
 public static class SHRSamuraiRestrictions
 {
     internal static bool RejectVent(RoleId role, bool canUseVent, VentilationSystem.Operation operation)
-        => role == RoleId.Samurai && !canUseVent
+        => role is RoleId.Samurai or RoleId.MadKiller && !canUseVent
             && operation is VentilationSystem.Operation.Enter or VentilationSystem.Operation.Move;
 
     internal static bool RejectSabotage(RoleId role, bool canSabotage)
@@ -18,6 +18,10 @@ public static class SHRSamuraiRestrictions
 
     private static bool IsHostSHR => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
         && ModeManager.IsMode(ModeId.SuperHostRoles);
+
+    private static bool CanUseVent(ExPlayerControl player)
+        => player.Role == RoleId.MadKiller
+            ? player.GetAbility<MadKillerAbility>()?.CanUseVent == true : Samurai.SamuraiCanUseVent;
 
     [HarmonyPatch(typeof(VentilationSystem), nameof(VentilationSystem.UpdateSystem))]
     public static class VentilationPatch
@@ -27,7 +31,7 @@ public static class SHRSamuraiRestrictions
             if (!IsHostSHR || player?.Data == null) return true;
             ExPlayerControl ex = player;
             bool waveBusy = ex.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true;
-            if (!waveBusy && (ex.Role != RoleId.Samurai || Samurai.SamuraiCanUseVent)) return true;
+            if (!waveBusy && !RejectVent(ex.Role, CanUseVent(ex), VentilationSystem.Operation.Enter)) return true;
             var reader = MessageReader.Get(msgReader);
             VentilationSystem.Operation operation;
             byte vent;
@@ -39,7 +43,7 @@ public static class SHRSamuraiRestrictions
             }
             finally { reader.Recycle(); }
             if (!(waveBusy && operation is VentilationSystem.Operation.Enter or VentilationSystem.Operation.Move)
-                && !RejectVent(ex.Role, Samurai.SamuraiCanUseVent, operation)) return true;
+                && !RejectVent(ex.Role, CanUseVent(ex), operation)) return true;
             player.MyPhysics.RpcBootFromVent(vent);
             Logger.Debug($"Vent rejected player={player.PlayerId} vent={vent} operation={operation}", "SHR.Samurai");
             return false;
@@ -54,7 +58,7 @@ public static class SHRSamuraiRestrictions
             if (!IsHostSHR || callId != (byte)RpcCalls.EnterVent || __instance.myPlayer?.Data == null) return true;
             ExPlayerControl player = __instance.myPlayer;
             if (player.GetAbility<WaveCannonAbility>()?.SHRController?.Busy != true
-                && !RejectVent(player.Role, Samurai.SamuraiCanUseVent, VentilationSystem.Operation.Enter)) return true;
+                && !RejectVent(player.Role, CanUseVent(player), VentilationSystem.Operation.Enter)) return true;
             var copy = MessageReader.Get(reader);
             int vent;
             try { vent = copy.ReadPackedInt32(); }

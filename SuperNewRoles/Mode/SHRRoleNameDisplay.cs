@@ -31,6 +31,7 @@ public static class SHRRoleNameDisplay
 
     public static void Restore()
     {
+        SHRMadKillerSupport.Restore();
         var client = AmongUsClient.Instance;
         if (client != null && client.AmHost)
         {
@@ -62,6 +63,7 @@ public static class SHRRoleNameDisplay
         }
         if (Time.unscaledTime < nextUpdate) return;
         nextUpdate = Time.unscaledTime + 0.5f;
+        SHRMadKillerSupport.Update();
 
         Remove.Clear();
         foreach (var pair in Sent)
