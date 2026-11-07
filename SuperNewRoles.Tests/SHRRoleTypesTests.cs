@@ -5,13 +5,13 @@ using Xunit;
 
 namespace SuperNewRoles.Tests;
 
-public class ShrRoleTypesTests
+public class SHRRoleTypesTests
 {
     [Theory]
     [InlineData(true, RoleTypes.Phantom)]
     [InlineData(false, RoleTypes.Impostor)]
     public void VampireControlsFollowDependentCreationOption(bool canCreate, RoleTypes expected)
-        => Assert.Equal(expected, ShrRoleTypes.GetVampireRole(canCreate));
+        => Assert.Equal(expected, SHRRoleTypes.GetVampireRole(canCreate));
 
     [Theory]
     [InlineData(RoleId.Banshee, RoleTypes.Shapeshifter)]
@@ -50,7 +50,7 @@ public class ShrRoleTypesTests
     [InlineData(RoleId.NekoKabocha, RoleTypes.Impostor)]
     [InlineData(RoleId.OverKiller, RoleTypes.Impostor)]
     [InlineData(RoleId.Pursuer, RoleTypes.Impostor)]
-    [InlineData(RoleId.SerialKiller, RoleTypes.Impostor)]
+    [InlineData(RoleId.SerialKiller, RoleTypes.Shapeshifter)]
     [InlineData(RoleId.VampireDependent, RoleTypes.Impostor)]
     [InlineData(RoleId.Impostor, RoleTypes.Impostor)]
     [InlineData(RoleId.Sheriff, RoleTypes.Impostor)]
@@ -58,10 +58,10 @@ public class ShrRoleTypesTests
     [InlineData(RoleId.Tasker, RoleTypes.Crewmate)]
     public void RoleTableAppliesOnlyToTheUnmoddedOwnersView(RoleId role, RoleTypes expected)
     {
-        Assert.True(ShrRoleTypes.IsSupported(role));
-        Assert.Equal(expected, ShrRoleAssignment.GetViewRole(role, RoleTypes.Crewmate, true,
+        Assert.True(SHRRoleTypes.IsSupported(role));
+        Assert.Equal(expected, SHRRoleAssignment.GetViewRole(role, RoleTypes.Crewmate, true,
             true, role, true, false));
-        Assert.Equal(RoleTypes.Crewmate, ShrRoleAssignment.GetViewRole(role, RoleTypes.Crewmate,
+        Assert.Equal(RoleTypes.Crewmate, SHRRoleAssignment.GetViewRole(role, RoleTypes.Crewmate,
             true, true, role, false, false));
     }
 
@@ -78,6 +78,6 @@ public class ShrRoleTypesTests
     [InlineData(RoleId.RocketLauncher)]
     [InlineData(RoleId.Slugger)]
     [InlineData(RoleId.TriggerHappy)]
-    public void UnsupportedRolesAreExcludedFromShr(RoleId role)
-        => Assert.False(ShrRoleTypes.IsSupported(role));
+    public void UnsupportedRolesAreExcludedFromSHR(RoleId role)
+        => Assert.False(SHRRoleTypes.IsSupported(role));
 }

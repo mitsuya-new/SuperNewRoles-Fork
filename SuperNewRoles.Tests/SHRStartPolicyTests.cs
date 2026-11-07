@@ -4,7 +4,7 @@ using Xunit;
 
 namespace SuperNewRoles.Tests;
 
-public class ShrStartPolicyTests
+public class SHRStartPolicyTests
 {
     [Theory]
     [InlineData(null, null)]
@@ -25,7 +25,7 @@ public class ShrStartPolicyTests
     [InlineData(SyncErrorType.RpcMapMismatch, false)]
     [InlineData(SyncErrorType.AmongUsVersionMismatch, false)]
     [InlineData(null, false)]
-    public void ShrStillChecksModdedGuests(SyncErrorType? error, bool expected)
+    public void SHRStillChecksModdedGuests(SyncErrorType? error, bool expected)
     {
         Assert.Equal(expected, SyncVersion.CanPlayerStartGame(ModeId.SuperHostRoles, "3.3.0.0", error));
     }

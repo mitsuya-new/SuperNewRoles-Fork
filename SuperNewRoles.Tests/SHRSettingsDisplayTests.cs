@@ -3,7 +3,7 @@ using Xunit;
 
 namespace SuperNewRoles.Tests;
 
-public class ShrSettingsDisplayTests
+public class SHRSettingsDisplayTests
 {
     [Theory]
     [InlineData(DisplayModeId.Default, true)]
@@ -12,13 +12,13 @@ public class ShrSettingsDisplayTests
     [InlineData(DisplayModeId.None, false)]
     [InlineData(DisplayModeId.BattleRoyal, false)]
     [InlineData(DisplayModeId.WCBattleRoyal, false)]
-    public void ShrShowsNormalSettingsAndItsOwnSettings(DisplayModeId target, bool expected)
+    public void SHRShowsNormalSettingsAndItsOwnSettings(DisplayModeId target, bool expected)
     {
         Assert.Equal(expected, DisplayMode.HasMode(DisplayModeId.SuperHostRolesOnly, target));
     }
 
     [Fact]
-    public void NormalModeStillHidesShrOnlySettings()
+    public void NormalModeStillHidesSHROnlySettings()
     {
         Assert.False(DisplayMode.HasMode(DisplayModeId.Default, DisplayModeId.SuperHostRolesOnly));
         Assert.True(DisplayMode.HasMode(DisplayModeId.Default, DisplayModeId.Default));

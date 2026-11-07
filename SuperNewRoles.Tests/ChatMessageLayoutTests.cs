@@ -33,7 +33,7 @@ public class ChatMessageLayoutTests
     }
 
     [Fact]
-    public void Calculate_KeepsTailSideWhenWidthShrinks()
+    public void Calculate_KeepsTailSideWhenWidthSHRinks()
     {
         var prefab = Prefab();
         float originalRight = prefab.BubbleRight;
@@ -83,7 +83,7 @@ public class ChatMessageLayoutTests
     }
 
     [Fact]
-    public void Calculate_DoesNotShrinkBelowPrefabTextHeight()
+    public void Calculate_DoesNotSHRinkBelowPrefabTextHeight()
     {
         var prefab = Prefab();
         ChatMessageLayout.Result layout = ChatMessageLayout.Calculate(

@@ -4,7 +4,7 @@ using Xunit;
 
 namespace SuperNewRoles.Tests;
 
-public class ShrSamuraiTests
+public class SHRSamuraiTests
 {
     [Theory]
     [InlineData(RoleId.Samurai, false, VentilationSystem.Operation.Enter, true)]
@@ -19,7 +19,7 @@ public class ShrSamuraiTests
     [InlineData(RoleId.Crewmate, false, VentilationSystem.Operation.StartCleaning, false)]
     public void VentRestrictionBlocksOnlyDisabledSamuraiEntryAndMovement(
         RoleId role, bool canVent, VentilationSystem.Operation operation, bool expected)
-        => Assert.Equal(expected, ShrSamuraiRestrictions.RejectVent(role, canVent, operation));
+        => Assert.Equal(expected, SHRSamuraiRestrictions.RejectVent(role, canVent, operation));
 
     [Theory]
     [InlineData(RoleId.Samurai, false, true)]
@@ -27,5 +27,5 @@ public class ShrSamuraiTests
     [InlineData(RoleId.Impostor, false, false)]
     [InlineData(RoleId.Crewmate, false, false)]
     public void SabotageRestrictionFollowsSamuraiSettingOnly(RoleId role, bool canSabotage, bool expected)
-        => Assert.Equal(expected, ShrSamuraiRestrictions.RejectSabotage(role, canSabotage));
+        => Assert.Equal(expected, SHRSamuraiRestrictions.RejectSabotage(role, canSabotage));
 }

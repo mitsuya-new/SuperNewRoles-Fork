@@ -156,7 +156,7 @@ public class CustomOptionTests
     public void CustomOption_ShouldRespect_DisplayMode()
     {
         // DisplayModeがSuperHostRolesOnlyのとき、SuperHostRolesモードのみで表示されること
-        var attr = new CustomOptionBoolAttribute("ShrOnly", true, translationName: "ShrOnly");
+        var attr = new CustomOptionBoolAttribute("SHROnly", true, translationName: "SHROnly");
         var option = new CustomOption(attr, GetField(typeof(DummyOptions), nameof(DummyOptions.FeatureToggle)));
         option.SetDisplayMode(DisplayModeId.SuperHostRolesOnly);
 

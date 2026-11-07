@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SuperNewRoles.Tests;
 
-public class ShrTestRoleBindingsTests
+public class SHRTestRoleBindingsTests
 {
     [Theory]
     [InlineData(true, true, false)]
@@ -13,16 +13,17 @@ public class ShrTestRoleBindingsTests
     [InlineData(false, true, false)]
     [InlineData(false, false, true)]
     public void OnlyUnmoddedGuestsNeedVanillaControlSubstitutions(bool isOwner, bool hasSnr, bool expected)
-        => Assert.Equal(expected, ShrTestRoleAbility.NeedsVanillaControls(isOwner, hasSnr));
+        => Assert.Equal(expected, SHRTestRoleAbility.NeedsVanillaControls(isOwner, hasSnr));
 
     [Theory]
-    [InlineData(RoleId.SelfBomber, ShrAbilityTrigger.Phantom)]
-    [InlineData(RoleId.Samurai, ShrAbilityTrigger.Phantom)]
-    [InlineData(RoleId.Jackal, ShrAbilityTrigger.Phantom)]
-    [InlineData(RoleId.Tasker, ShrAbilityTrigger.Pet)]
-    [InlineData(RoleId.Sheriff, (ShrAbilityTrigger)0)]
-    [InlineData(RoleId.Crewmate, (ShrAbilityTrigger)0)]
-    [InlineData(RoleId.Impostor, (ShrAbilityTrigger)0)]
-    public void OnlyRequestedRolesReceiveTestTriggers(RoleId role, ShrAbilityTrigger expected)
-        => Assert.Equal(expected, ShrTestRoleAbility.TriggerFor(role));
+    [InlineData(RoleId.SelfBomber, SHRAbilityTrigger.Phantom)]
+    [InlineData(RoleId.Samurai, SHRAbilityTrigger.Phantom)]
+    [InlineData(RoleId.WaveCannon, SHRAbilityTrigger.Phantom)]
+    [InlineData(RoleId.Jackal, SHRAbilityTrigger.Phantom)]
+    [InlineData(RoleId.Tasker, SHRAbilityTrigger.Pet)]
+    [InlineData(RoleId.Sheriff, (SHRAbilityTrigger)0)]
+    [InlineData(RoleId.Crewmate, (SHRAbilityTrigger)0)]
+    [InlineData(RoleId.Impostor, (SHRAbilityTrigger)0)]
+    public void OnlyRequestedRolesReceiveTestTriggers(RoleId role, SHRAbilityTrigger expected)
+        => Assert.Equal(expected, SHRTestRoleAbility.TriggerFor(role));
 }

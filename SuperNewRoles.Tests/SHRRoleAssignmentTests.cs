@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SuperNewRoles.Tests;
 
-public class ShrRoleAssignmentTests
+public class SHRRoleAssignmentTests
 {
     [Theory]
     [InlineData(RoleId.Jackal, RoleTypes.Crewmate, RoleTypes.Phantom)]
@@ -14,30 +14,30 @@ public class ShrRoleAssignmentTests
     [InlineData(RoleId.Crewmate, RoleTypes.Engineer, RoleTypes.Engineer)]
     public void UnmoddedPlayersReceiveTheirControlRoleInTheirFirstAssignment(
         RoleId custom, RoleTypes vanilla, RoleTypes expected)
-        => Assert.Equal(expected, ShrRoleAssignment.GetViewRole(custom, vanilla, true, true,
+        => Assert.Equal(expected, SHRRoleAssignment.GetViewRole(custom, vanilla, true, true,
             custom, true, vanilla == RoleTypes.Impostor));
 
     [Theory]
     [InlineData(RoleId.Jackal)]
     [InlineData(RoleId.Sheriff)]
     public void ImpostorButtonsDoNotRevealRealImpostors(RoleId viewer)
-        => Assert.Equal(RoleTypes.Scientist, ShrRoleAssignment.GetViewRole(RoleId.SelfBomber,
+        => Assert.Equal(RoleTypes.Scientist, SHRRoleAssignment.GetViewRole(RoleId.SelfBomber,
             RoleTypes.Impostor, false, true, viewer, true, true));
 
     [Fact]
     public void OtherUnmoddedPlayersDoNotSeeJackalAsImpostor()
-        => Assert.Equal(RoleTypes.Scientist, ShrRoleAssignment.GetViewRole(RoleId.Jackal,
+        => Assert.Equal(RoleTypes.Scientist, SHRRoleAssignment.GetViewRole(RoleId.Jackal,
             RoleTypes.Crewmate, false, true, RoleId.Crewmate, true, false));
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void ModdedViewerKeepsCanonicalVanillaRole(bool isSelf)
-        => Assert.Equal(RoleTypes.Crewmate, ShrRoleAssignment.GetViewRole(RoleId.Jackal,
+        => Assert.Equal(RoleTypes.Crewmate, SHRRoleAssignment.GetViewRole(RoleId.Jackal,
             RoleTypes.Crewmate, isSelf, true, RoleId.Jackal, false, false));
 
     [Fact]
     public void VanillaImpostorStillSeesTheirOwnImpostorRole()
-        => Assert.Equal(RoleTypes.Impostor, ShrRoleAssignment.GetViewRole(RoleId.Impostor,
+        => Assert.Equal(RoleTypes.Impostor, SHRRoleAssignment.GetViewRole(RoleId.Impostor,
             RoleTypes.Impostor, true, true, RoleId.Impostor, true, true));
 }
