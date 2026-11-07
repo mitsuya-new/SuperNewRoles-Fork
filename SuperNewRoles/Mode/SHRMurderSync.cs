@@ -42,5 +42,7 @@ public static class SHRMurderSync
         FinalStatusManager.SetFinalStatus(target, finalStatus ?? (explosion
             ? (suicide ? FinalStatus.SelfBomb : FinalStatus.BombBySelfBomb) : FinalStatus.Kill));
         if (!suicide) MurderDataManager.AddMurderData(source, target);
+        if (explosion && !suicide)
+            target.GetAbility<Roles.Impostor.NekoKabochaRevenge>()?.OnSHRSpecialMurder(source, flags);
     }
 }

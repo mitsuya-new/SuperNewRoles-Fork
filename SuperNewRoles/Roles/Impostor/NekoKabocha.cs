@@ -8,6 +8,7 @@ using SuperNewRoles.Events.PCEvents;
 using UnityEngine;
 using SuperNewRoles.Roles.Ability;
 using System.Linq;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Impostor;
 
@@ -49,6 +50,8 @@ public record NekoKabochaData(bool CanRevengeCrewmate, bool CanRevengeNeutral, b
 
 public class NekoKabochaRevenge : AbilityBase
 {
+    private bool revenged;
+    private bool IsSHR => ModeManager.IsMode(ModeId.SuperHostRoles);
 
     public NekoKabochaData Data { get; }
 
@@ -59,6 +62,7 @@ public class NekoKabochaRevenge : AbilityBase
 
     public override void AttachToLocalPlayer()
     {
+        if (IsSHR && AmongUsClient.Instance?.AmHost != true) return;
         // 殺害イベントリスナーの登録
         SubscribeWithAbility(MurderEvent.Instance, OnMurder);
 
@@ -66,13 +70,35 @@ public class NekoKabochaRevenge : AbilityBase
         SubscribeWithAbility(WrapUpEvent.Instance, OnWrapUp);
     }
 
+    public override void AttachToOthers()
+    {
+        if (!IsSHR || AmongUsClient.Instance?.AmHost != true) return;
+        SubscribeWithAbility(MurderEvent.Instance, OnMurder);
+        SubscribeWithAbility(WrapUpEvent.Instance, OnWrapUp);
+    }
+
+    internal static bool CanRevenge(NekoKabochaData settings, bool crewmate, bool neutral, bool impostor)
+        => (crewmate && settings.CanRevengeCrewmate) || (neutral && settings.CanRevengeNeutral)
+            || (impostor && settings.CanRevengeImpostor);
+
+    internal void OnSHRSpecialMurder(ExPlayerControl killer, MurderResultFlags flags)
+        => OnMurder(new MurderEventData(killer, Player, flags));
+
     private void OnMurder(MurderEventData data)
     {
         if (data.target == null || data.killer == null) return;
-        if (data.target != ExPlayerControl.LocalPlayer) return;
+        if (data.target != Player) return;
         if (!data.resultFlags.HasFlag(MurderResultFlags.Succeeded)) return;
         // 無限ループ防止
         if (data.killer == data.target) return;
+        if (IsSHR)
+        {
+            if (revenged || !data.killer.IsAlive() || data.killer.Data.Disconnected) return;
+            if (!CanRevenge(Data, data.killer.IsCrewmate(), data.killer.IsNeutral(), data.killer.IsImpostor())) return;
+            revenged = true;
+            SHRMurderSync.Murder(Player, data.killer, finalStatus: FinalStatus.Kill);
+            return;
+        }
 
         bool canRevenge = false;
         ExPlayerControl killer = data.killer;
@@ -93,14 +119,17 @@ public class NekoKabochaRevenge : AbilityBase
     {
         if (Data.CanRevengeExiled &&
             data.exiled != null && data.exiled.Object != null &&
-            data.exiled.PlayerId == ExPlayerControl.LocalPlayer.PlayerId)
+            data.exiled.PlayerId == Player.PlayerId)
         {
-            List<ExPlayerControl> targets = ExPlayerControl.ExPlayerControls.Where(x => x.IsAlive() && !x.AmOwner).ToList();
+            if (IsSHR && revenged) return;
+            List<ExPlayerControl> targets = ExPlayerControl.ExPlayerControls.Where(x => x.IsAlive() && x != Player
+                && !x.Data.Disconnected).ToList();
 
             if (targets.Count > 0)
             {
                 ExPlayerControl randomTarget = ModHelpers.GetRandom(targets);
-                ExPlayerControl.LocalPlayer.RpcCustomDeath(randomTarget, CustomDeathType.Revange);
+                revenged = true;
+                Player.RpcCustomDeath(randomTarget, CustomDeathType.Revange);
             }
         }
     }

@@ -13,6 +13,7 @@ public class SHRVanillaRpcRouterTests
     [InlineData(CustomDeathType.Kill, "Kill")]
     [InlineData(CustomDeathType.Exile, "Exile")]
     [InlineData(CustomDeathType.Suicide, "Suicide")]
+    [InlineData(CustomDeathType.Revange, "Revenge")]
     [InlineData(CustomDeathType.KillWithoutKillAnimation, "None")]
     [InlineData(CustomDeathType.BuskerFakeDeath, "None")]
     public void StandardDeathOverloadsAreRoutedWithoutFlatteningSpecialRoleBehavior(
