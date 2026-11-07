@@ -7,7 +7,7 @@ using Xunit;
 
 namespace SuperNewRoles.Tests;
 
-public class ShrVanillaRpcRouterTests
+public class SHRVanillaRpcRouterTests
 {
     [Theory]
     [InlineData(CustomDeathType.Kill, "Kill")]
@@ -22,24 +22,24 @@ public class ShrVanillaRpcRouterTests
         {
             var args = new object[method.GetParameters().Length];
             args[^1] = death;
-            Assert.Equal(expected, ShrVanillaRpcRouter.Classify(method, args).ToString());
+            Assert.Equal(expected, SHRVanillaRpcRouter.Classify(method, args).ToString());
         }
     }
 
     [Fact]
     public void TasksAndStandardPlayerOperationsHaveNativeRoutes()
     {
-        Assert.Equal(ShrVanillaRpcRouter.Operation.SetTasks,
-            ShrVanillaRpcRouter.Classify(typeof(CustomTaskAbility).GetMethod("RpcUncheckedSetTasks")!, []));
-        AssertRoute("RpcExiledCustom", ShrVanillaRpcRouter.Operation.Exile);
-        AssertRoute("RpcCustomMurderPlayer", ShrVanillaRpcRouter.Operation.MurderResult);
-        AssertRoute("RpcCustomReportDeadBody", ShrVanillaRpcRouter.Operation.Report);
-        AssertRoute("RpcCustomSnapTo", ShrVanillaRpcRouter.Operation.SnapTo);
-        AssertRoute("RpcShapeshiftModded", ShrVanillaRpcRouter.Operation.Shapeshift);
-        AssertRoute("RpcCustomSetRole", ShrVanillaRpcRouter.Operation.None);
-        AssertRoute("RpcCustomSetModifierRole", ShrVanillaRpcRouter.Operation.None);
+        Assert.Equal(SHRVanillaRpcRouter.Operation.SetTasks,
+            SHRVanillaRpcRouter.Classify(typeof(CustomTaskAbility).GetMethod("RpcUncheckedSetTasks")!, []));
+        AssertRoute("RpcExiledCustom", SHRVanillaRpcRouter.Operation.Exile);
+        AssertRoute("RpcCustomMurderPlayer", SHRVanillaRpcRouter.Operation.MurderResult);
+        AssertRoute("RpcCustomReportDeadBody", SHRVanillaRpcRouter.Operation.Report);
+        AssertRoute("RpcCustomSnapTo", SHRVanillaRpcRouter.Operation.SnapTo);
+        AssertRoute("RpcShapeshiftModded", SHRVanillaRpcRouter.Operation.Shapeshift);
+        AssertRoute("RpcCustomSetRole", SHRVanillaRpcRouter.Operation.None);
+        AssertRoute("RpcCustomSetModifierRole", SHRVanillaRpcRouter.Operation.None);
     }
 
-    private static void AssertRoute(string method, ShrVanillaRpcRouter.Operation expected)
-        => Assert.Equal(expected, ShrVanillaRpcRouter.Classify(typeof(PlayerControlRpcExtensions).GetMethod(method)!, []));
+    private static void AssertRoute(string method, SHRVanillaRpcRouter.Operation expected)
+        => Assert.Equal(expected, SHRVanillaRpcRouter.Classify(typeof(PlayerControlRpcExtensions).GetMethod(method)!, []));
 }
