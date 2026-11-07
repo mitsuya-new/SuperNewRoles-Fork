@@ -327,16 +327,19 @@ public static class SyncVersion
         foreach (NetworkedPlayerInfo p in GameData.Instance.AllPlayers)
         {
             if (p == null || p.Disconnected) continue;
-            byte id = p.PlayerId;
-            if (!VersionData.VersionMap.TryGetValue(id, out string snr) || string.IsNullOrEmpty(snr))
+            VersionData.VersionMap.TryGetValue(p.PlayerId, out string version);
+            SyncErrorType? error = VersionData.IsError.TryGetValue(p.PlayerId, out var value) ? value : null;
+            if (!CanPlayerStartGame(CustomOptions.Categories.Categories.ModeOption, version, error))
                 return false;
-            if (!VersionData.IsError.TryGetValue(id, out SyncErrorType err))
-                return false;
-            if (err == SyncErrorType.NotMismatch || err == SyncErrorType.HashMismatch)
-                continue;
-            return false;
         }
         return true;
+    }
+
+    internal static bool CanPlayerStartGame(ModeId mode, string version, SyncErrorType? error)
+    {
+        if (mode == ModeId.BattleRoyal) return true;
+        if (string.IsNullOrEmpty(version)) return mode == ModeId.SuperHostRoles;
+        return error is SyncErrorType.NotMismatch or SyncErrorType.HashMismatch;
     }
 
     /// <summary>
@@ -695,7 +698,7 @@ internal static class SyncVersionErrorHandler
     /// </summary>
     private static int ComputeErrorSignature()
     {
-        int hash = 17;
+        int hash = 17 * 31 + (int)CustomOptions.Categories.Categories.ModeOption;
         foreach (var error in SyncVersion.VersionData.IsError)
         {
             hash = hash * 31 + error.Key;
@@ -816,6 +819,8 @@ internal static class SyncVersionErrorHandler
 
     private static string CreateErrorMessage(KeyValuePair<byte, SyncErrorType> kvp)
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles) && kvp.Value == SyncErrorType.NotInstalled)
+            return null;
         if (!SyncVersion.TryGetPlayerControl(kvp.Key, out PlayerControl player))
             return null;
 
@@ -831,7 +836,8 @@ internal static class SyncVersionErrorHandler
             SyncErrorType.AmongUsVersionMismatch => ModTranslation.GetString("SyncError_AmongUsVersionMismatch")
                 .Replace("{player}", player.Data.PlayerName)
                 .Replace("{version}", GetAmongUsVersionMismatchDisplay(kvp.Key)),
-            SyncErrorType.NotInstalled => ModTranslation.GetString("SyncError_NotInstalled")
+            SyncErrorType.NotInstalled => ModTranslation.GetString(
+                    ModeManager.IsMode(ModeId.Default) ? "SyncError_NotInstalled_SwitchToSHR" : "SyncError_NotInstalled")
                 .Replace("{player}", player.Data.PlayerName),
             _ => null
         };
