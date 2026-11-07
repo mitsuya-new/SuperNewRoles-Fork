@@ -17,7 +17,8 @@ public static class SHRPlayerOptions
                 || string.IsNullOrEmpty(version));
 
     public static float KillCooldown(ExPlayerControl player)
-        => player.GetAbility<CustomKillButtonAbility>()?.DefaultTimer
+        => player.GetAbility<EvilGamblerAbility>()?.SHRKillCooldown
+            ?? player.GetAbility<CustomKillButtonAbility>()?.DefaultTimer
             ?? GameManager.Instance.LogicOptions.currentGameOptions.GetFloat(FloatOptionNames.KillCooldown);
 
     public static float AbilityCooldown(ExPlayerControl player) => player.Role switch
