@@ -10,6 +10,7 @@
         <langVersion>preview</langVersion>
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
         <DebugType>portable</DebugType>
+        <AmongUs>C:\Program Files (x86)\Steam\steamapps\common\Among Us</AmongUs>
     </PropertyGroup>
 
     <PropertyGroup>
