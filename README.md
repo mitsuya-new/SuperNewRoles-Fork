@@ -7,6 +7,9 @@
 > これは配布せずファイルをアップロードする用のリポジトリです。<br>
 > SuperHostRoles Modeを独自実装します。完成次第PRを予定しています。
 
+- [対応表はこちら](./.SHRSupport.md) <br>
+- [置き換え役対応表はこちら](./.RoleType-Memo.md)
+
 ## SuperNewRolesに関する情報
 [公式Wiki](https://wiki.supernewroles.com)<br>
 [公式Github](https://github.com/ykundesu/SuperNewRoles)
