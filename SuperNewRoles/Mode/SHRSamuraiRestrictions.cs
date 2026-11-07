@@ -30,7 +30,7 @@ public static class SHRSamuraiRestrictions
         {
             if (!IsHostSHR || player?.Data == null) return true;
             ExPlayerControl ex = player;
-            bool waveBusy = ex.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true;
+            bool waveBusy = ex.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true || PenguinAbility.IsDragged(ex);
             if (!waveBusy && !RejectVent(ex.Role, CanUseVent(ex), VentilationSystem.Operation.Enter)) return true;
             var reader = MessageReader.Get(msgReader);
             VentilationSystem.Operation operation;
@@ -57,7 +57,7 @@ public static class SHRSamuraiRestrictions
         {
             if (!IsHostSHR || callId != (byte)RpcCalls.EnterVent || __instance.myPlayer?.Data == null) return true;
             ExPlayerControl player = __instance.myPlayer;
-            if (player.GetAbility<WaveCannonAbility>()?.SHRController?.Busy != true
+            if (player.GetAbility<WaveCannonAbility>()?.SHRController?.Busy != true && !PenguinAbility.IsDragged(player)
                 && !RejectVent(player.Role, CanUseVent(player), VentilationSystem.Operation.Enter)) return true;
             var copy = MessageReader.Get(reader);
             int vent;

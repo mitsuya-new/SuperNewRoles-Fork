@@ -55,6 +55,7 @@ public static class SHRKillRequests
         var ability = killer.GetAbility<CustomKillButtonAbility>();
         bool permitted = ability != null ? ability.CanKill() : __instance.Data.Role?.IsImpostor == true;
         if (killer.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true) permitted = false;
+        if (killer.GetAbility<PenguinAbility>() is { } penguin && !penguin.CanUseNormalKill) permitted = false;
         if (killer.Role == SuperNewRoles.Roles.RoleId.Tasker
             && (!SuperNewRoles.Roles.Impostor.Tasker.TaskerCanKill
                 || killer.GetAbility<SHRTestRoleAbility>()?.TaskerImpostor != true)) permitted = false;

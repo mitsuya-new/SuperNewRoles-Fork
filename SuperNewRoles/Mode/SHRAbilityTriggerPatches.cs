@@ -27,6 +27,7 @@ public static class SHRAbilityTriggerPatches
             && !AmongUsClient.Instance.IsGameOver && MeetingHud.Instance == null && ExileController.Instance == null
             && HudManager.Instance != null && !HudManager.Instance.IsIntroDisplayed
             && player != null && player.Data != null && !player.Data.IsDead && !player.Data.Disconnected
+            && !PenguinAbility.IsDragged(player)
             && !player.inVent && !player.walkingToVent && !player.onLadder && !player.inMovingPlat
             && !(ShipStatus.Instance?.TryCast<FungleShipStatus>()?.Zipline?.playerIdHands.ContainsKey(player.PlayerId) == true);
 
@@ -119,11 +120,13 @@ public static class SHRAbilityTriggerPatches
         Logger.Debug($"Phantom received player={player.PlayerId} handler={ability != null} allowed={CanActivate(player)}", "SHR.Controls");
         if (ability == null) return true;
         if (!CanActivate(player) || !ability.TryConsumeInput(Time.unscaledTime)) return false;
-        bool accepted = Activate(player, ability, SHRAbilityTrigger.Phantom);
+        Activate(player, ability, SHRAbilityTrigger.Phantom);
         if (CanActivate(player))
         {
-            if (accepted) ResetPhantomButton(player, ability.RemainingCooldown(Time.unscaledTime));
-            else SHRPlayerOptions.Send(player, abilityCooldown: ability.RemainingCooldown(Time.unscaledTime), resetAbility: true);
+            ExPlayerControl exPlayer = player;
+            float remaining = exPlayer.GetAbility<PenguinAbility>() is { IsHolding: true } penguin
+                ? penguin.SHRAbilityCooldown : ability.RemainingCooldown(Time.unscaledTime);
+            ResetPhantomButton(player, remaining);
         }
         return false;
     }
@@ -137,18 +140,29 @@ public static class SHRAbilityTriggerPatches
         }
         int clientId = AmongUsClient.Instance.GetClientIdFromCharacter(player);
         if (clientId < 0) return;
-        SendRole(RoleTypes.Impostor);
         ExPlayerControl exPlayer = player;
         bool completed = exPlayer.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true;
-        if (!completed) SendRole(RoleTypes.Phantom);
+        var packet = MessageWriter.Get(SendOption.Reliable);
+        try
+        {
+            packet.StartMessage(Tags.GameDataTo);
+            packet.Write(AmongUsClient.Instance.GameId);
+            packet.WritePacked(clientId);
+            SendRole(RoleTypes.Impostor);
+            if (!completed) SendRole(RoleTypes.Phantom);
+            packet.EndMessage();
+            AmongUsClient.Instance.SendOrDisconnect(packet);
+        }
+        finally { packet.Recycle(); }
         SHRPlayerOptions.Send(player, abilityCooldown: remaining,
             killCooldown: SHRKillRequests.RemainingCooldown(player), resetAbility: !completed, resetKill: true);
         void SendRole(RoleTypes role)
         {
-            var writer = AmongUsClient.Instance.StartRpcImmediately(player.NetId, (byte)RpcCalls.SetRole,
-                SendOption.Reliable, clientId);
-            new RpcSetRoleMessage(player.NetId, role, true).SerializeRpcValues(writer);
-            AmongUsClient.Instance.FinishRpcImmediately(writer);
+            packet.StartMessage((byte)GameDataTypes.RpcFlag);
+            packet.WritePacked(player.NetId);
+            packet.Write((byte)RpcCalls.SetRole);
+            new RpcSetRoleMessage(player.NetId, role, true).SerializeRpcValues(packet);
+            packet.EndMessage();
         }
     }
 }

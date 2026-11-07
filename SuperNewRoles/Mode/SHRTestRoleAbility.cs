@@ -40,6 +40,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         RoleId.WaveCannon => SHRAbilityTrigger.Phantom,
         RoleId.Jackal => SHRAbilityTrigger.Phantom,
         RoleId.SideKiller => SHRAbilityTrigger.Phantom,
+        RoleId.Penguin => SHRAbilityTrigger.Phantom,
         RoleId.Tasker => SHRAbilityTrigger.Pet,
         _ => 0,
     };
@@ -71,6 +72,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
             RoleId.WaveCannon => WaveCannon.WaveCannonCooldown,
             RoleId.Jackal => Player.GetAbility<JackalAbility>()?.JackData.SidekickCooldown ?? 0f,
             RoleId.SideKiller => SideKiller.SideKillerKillCooldown,
+            RoleId.Penguin => Penguin.PenguinCooldown,
             _ => 0f,
         };
         var trigger = new SHRAbilityTriggerAbility(TriggerFor(Player.Role), _ => Use(),
@@ -116,6 +118,8 @@ public sealed class SHRTestRoleAbility : AbilityBase
             available &= Player.GetAbility<AreaKillButtonAbility>() is { IsUsed: false } area && area.CanKill();
         if (Player.Role == RoleId.WaveCannon)
             available &= Player.GetAbility<WaveCannonAbility>()?.SHRController?.CanStart == true;
+        if (Player.Role == RoleId.Penguin)
+            available &= Player.GetAbility<PenguinAbility>()?.FindSHRTarget() != null;
         Logger.Debug($"Ability availability player={Player.PlayerId} role={Player.Role} configured={configured} ready={ready} target={target?.PlayerId} allowed={available}", "SHR.Controls");
         return available;
     }
@@ -134,6 +138,9 @@ public sealed class SHRTestRoleAbility : AbilityBase
     {
         switch (Player.Role)
         {
+            case RoleId.Penguin:
+                Player.GetAbility<PenguinAbility>()?.TryStartSHR();
+                break;
             case RoleId.SideKiller:
                 var madKillerTarget = FindSidekickTarget();
                 if (madKillerTarget != null && Player.GetAbility<SideKillerAbility>().SidekickAbility.TryCreateSidekick(madKillerTarget))
@@ -223,6 +230,10 @@ public sealed class SHRTestRoleAbility : AbilityBase
             case RoleId.SideKiller:
                 SetSelfRole(Player.Player, RoleTypes.Phantom);
                 ResetInitialCooldown(SideKiller.SideKillerKillCooldown);
+                break;
+            case RoleId.Penguin:
+                SetSelfRole(Player.Player, RoleTypes.Phantom);
+                ResetInitialCooldown(Penguin.PenguinCooldown);
                 break;
         }
     }

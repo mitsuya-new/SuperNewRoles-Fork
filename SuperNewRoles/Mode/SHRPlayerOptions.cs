@@ -29,6 +29,7 @@ public static class SHRPlayerOptions
         RoleId.WaveCannon => WaveCannon.WaveCannonCooldown,
         RoleId.SerialKiller => player.GetAbility<SuicideTimerAbility>()?.NativeCooldown ?? 0f,
         RoleId.SideKiller => SideKiller.SideKillerKillCooldown,
+        RoleId.Penguin => player.GetAbility<PenguinAbility>()?.SHRAbilityCooldown ?? Penguin.PenguinCooldown,
         _ => 0f,
     };
 
@@ -61,10 +62,11 @@ public static class SHRPlayerOptions
             options.SetFloat(FloatOptionNames.EngineerInVentMaxTime, 0f);
         }
         if (ex.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true) playerSpeed = 0.0001f;
+        if (PenguinAbility.IsDragged(ex)) playerSpeed = 0.0001f;
         if (playerSpeed.HasValue) options.SetFloat(FloatOptionNames.PlayerSpeedMod, playerSpeed.Value);
         float kill = UnityEngine.Mathf.Max(0.001f, killCooldown ?? KillCooldown(ex));
         options.SetFloat(FloatOptionNames.KillCooldown, resetKill ? kill * 2f : kill);
-        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SideKiller)
+        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SideKiller or RoleId.Penguin)
             options.SetFloat(FloatOptionNames.PhantomCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
         if (ex.Role == RoleId.SerialKiller)
             options.SetFloat(FloatOptionNames.ShapeshifterCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
