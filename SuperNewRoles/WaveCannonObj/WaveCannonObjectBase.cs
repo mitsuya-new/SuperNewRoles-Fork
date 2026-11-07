@@ -49,16 +49,21 @@ public abstract class WaveCannonObjectBase
     private bool isExecutingKill;
     private bool killRecordedForCurrentExecution;
     private ExPlayerControl currentKillTarget;
+    private readonly bool visualOnly;
 
     public WaveCannonObjectBase(WaveCannonAbility ability, bool isFlipX, Vector3 startPosition, bool isResetKillCooldown)
     {
         this.ability = ability;
+        visualOnly = ability.UsesSHRCannon;
         murderEventListener = MurderEvent.Instance.AddListener(OnMurder);
         new LateTask(() => this.fixedUpdateEvent = FixedUpdateEvent.Instance.AddListener(OnFixedUpdate), 0f, "WaveCannonObjectAddFixedUpdateListener");
         isShooting = false;
         this.startPosition = startPosition;
-        ability.Player.NetTransform.RpcSnapTo(startPosition);
-        OnFixedUpdate();
+        if (!visualOnly)
+        {
+            ability.Player.NetTransform.RpcSnapTo(startPosition);
+            OnFixedUpdate();
+        }
         timer = ShootTime;
         this.isResetKillCooldown = isResetKillCooldown;
     }
@@ -74,6 +79,20 @@ public abstract class WaveCannonObjectBase
         {
             ability.Player.cosmetics.currentBodySprite.BodySprite.gameObject.SetActive(false);
             ability.Player.cosmetics.gameObject.SetActive(false);
+        }
+        if (visualOnly)
+        {
+            if (isShooting)
+            {
+                if (!isShootingStarted)
+                {
+                    isShootingStarted = true;
+                    OnAnimationShoot();
+                }
+                OnAnimationUpdateShooting();
+            }
+            else OnAnimationUpdateCharging();
+            return;
         }
         if (ability.Player.AmOwner)
         {
@@ -308,12 +327,13 @@ public abstract class WaveCannonObjectBase
     }
     public virtual void Detach()
     {
+        if (detached) return;
         if (murderEventListener != null)
         {
             MurderEvent.Instance.RemoveListener(murderEventListener);
             murderEventListener = null;
         }
-        if (ability?.Player?.AmOwner == true)
+        if (!visualOnly && ability?.Player?.AmOwner == true)
             RpcDetach(ability.Player);
         new LateTask(() => FixedUpdateEvent.Instance.RemoveListener(fixedUpdateEvent), 0f, "WaveCannonObjectRemoveFixedUpdateListener");
         detached = true;
@@ -325,9 +345,9 @@ public abstract class WaveCannonObjectBase
             ability.Player.cosmetics.gameObject.SetActive(true);
         }
         ability.DetachWaveCannonObject();
-        ability.Player.Player.moveable = true;
+        if (!visualOnly) ability.Player.Player.moveable = true;
         ability.Player.MyPhysics.Animations.PlayIdleAnimation();
-        if (ability.Player.AmOwner && isResetKillCooldown)
+        if (!visualOnly && ability.Player.AmOwner && isResetKillCooldown)
             ExPlayerControl.LocalPlayer.ResetKillCooldown();
     }
 

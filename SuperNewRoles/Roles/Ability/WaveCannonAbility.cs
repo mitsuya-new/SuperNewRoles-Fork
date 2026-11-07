@@ -6,6 +6,9 @@ using SuperNewRoles.WaveCannonObj;
 using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.Modules.Events.Bases;
 using SuperNewRoles.SuperTrophies;
+using SuperNewRoles.Mode;
+using SuperNewRoles.Events;
+using SuperNewRoles.Roles;
 
 namespace SuperNewRoles.Roles.Ability;
 
@@ -34,6 +37,8 @@ public class WaveCannonAbility : CustomButtonBase, IButtonEffect
     public bool friendlyFire { get; }
     public bool KillSound { get; }
     public bool distributedKillSound { get; }
+    internal SHRWaveCannonController SHRController { get; private set; }
+    internal bool UsesSHRCannon => ModeManager.IsMode(ModeId.SuperHostRoles) && Player.Role == RoleId.WaveCannon;
     public WaveCannonAbility(
         float coolDown,
         float effectDuration,
@@ -57,9 +62,30 @@ public class WaveCannonAbility : CustomButtonBase, IButtonEffect
         base.AttachToAlls();
         if (isResetKillCooldown)
             SyncKillCoolTimeAbility.CreateAndAttach(this);
+        if (UsesSHRCannon && AmongUsClient.Instance.AmHost)
+        {
+            SHRController = new SHRWaveCannonController(this);
+            SubscribeWithAbility(FixedUpdateEvent.Instance, SHRController.Tick);
+            SubscribeWithAbility(MeetingStartEvent.Instance, _ => SHRController.Cancel());
+            SubscribeWithAbility(WrapUpEvent.Instance, _ => SHRController.ResetInitialCooldown());
+            SubscribeWithAbility(IntroCutsceneInitializeEvent.Instance, SHRController.ResetInitialCooldown);
+            SubscribeWithAbility(TryKillEvent.Instance, data =>
+            {
+                if (SHRController.Busy && data.RefTarget == Player && data.Killer != Player)
+                    data.RefSuccess = false;
+                if (data.Killer == Player && SHRController.Busy && !SHRController.ApplyingBeamDamage)
+                    data.RefSuccess = false;
+            });
+        }
     }
     public override void OnClick()
     {
+        if (UsesSHRCannon)
+        {
+            SHRWaveCannonController.RpcRequestFire(Player);
+            ResetTimer();
+            return;
+        }
         WaveCannonObjectBase.RpcSpawnFromType(PlayerControl.LocalPlayer, Type, PlayerControl.LocalPlayer.MyPhysics.FlipX, PlayerControl.LocalPlayer.transform.position);
         ResetTimer();
     }
@@ -79,10 +105,12 @@ public class WaveCannonAbility : CustomButtonBase, IButtonEffect
     }
     public override bool CheckIsAvailable()
     {
+        if (UsesSHRCannon && SHRWaveCannonController.IsDisplaying(Player.PlayerId)) return false;
         return PlayerControl.LocalPlayer.CanMove;
     }
     public override void DetachToAlls()
     {
+        SHRController?.Cancel();
         base.DetachToAlls();
         new LateTask(() => WaveCannonObject?.Detach(), 0f, "WaveCannonAbilityDetach");
     }
@@ -97,6 +125,7 @@ public class WaveCannonAbility : CustomButtonBase, IButtonEffect
     [CustomRPC]
     public void RpcShootCannon()
     {
+        if (UsesSHRCannon) return;
         WaveCannonObject?.OnShoot();
         if (bullet != null)
             bullet.CustomDeath(CustomDeathType.SuicideSecrets);

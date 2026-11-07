@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace SuperNewRoles.Mode;
 
-public static class ShrRoleNameDisplay
+public static class SHRRoleNameDisplay
 {
     private sealed record SentName(PlayerControl Player, string Original, string Display);
     private static readonly Dictionary<byte, SentName> Sent = new();
@@ -75,6 +75,7 @@ public static class ShrRoleNameDisplay
                 || player.Data.Role == null || client.GetClientIdFromCharacter(player) < 0) continue;
             ExPlayerControl exPlayer = player;
             if (exPlayer == null) continue;
+            if (SHRWaveCannonController.IsDisplaying(player.PlayerId) && MeetingHud.Instance == null) continue;
             bool hidden = exPlayer.TryGetAbility<HideMyRoleWhenAliveAbility>(out var hide) && hide.IsHide(exPlayer).role;
             string original = player.Data.PlayerName;
             string display = IsUnmodded(player) && !hidden

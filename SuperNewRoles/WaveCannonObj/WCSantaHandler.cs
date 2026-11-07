@@ -21,6 +21,7 @@ public class WCSantaHandler : MonoBehaviour
     private ExPlayerControl _source;
     private bool _friendlyFire;
     private bool _isFlipX;
+    private bool _visualOnly;
     private readonly HashSet<byte> _alreadyKilled = new();
 
     /// <summary>
@@ -29,6 +30,7 @@ public class WCSantaHandler : MonoBehaviour
     public void Init(WaveCannonAbility ability, bool isFlipX)
     {
         _ability = ability;
+        _visualOnly = ability?.UsesSHRCannon == true;
         _source = ability?.Player;
         _friendlyFire = ability?.friendlyFire ?? true;
         _isFlipX = isFlipX;
@@ -68,6 +70,7 @@ public class WCSantaHandler : MonoBehaviour
 
     private void TryKillTouchingPlayers()
     {
+        if (_visualOnly) return;
         if (KillCollider == null) return;
         if (_ability == null || _source == null) return;
         if (!_source.AmOwner) return; // キル判定は発射者視点のみ

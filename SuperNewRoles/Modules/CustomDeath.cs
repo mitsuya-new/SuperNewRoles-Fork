@@ -23,6 +23,7 @@ public static class CustomDeathExtensions
     }
     public static void CustomDeath(this ExPlayerControl player, CustomDeathType deathType, ExPlayerControl source = null, bool suppressKillAnimation = false)
     {
+        if (SHRWaveCannonController.BlocksAttack(SHRWaveCannonController.IsProtected(player), source == player, deathType)) return;
         string sourceName = source?.Player?.Data?.PlayerName ?? "NoPlayer";
         string sourceRoleStr = source != null ? source.Role.ToString() : "NoRole";
         Logger.Info($"[Death] {deathType}: {player.PlayerId}:{player.Player.Data.PlayerName}({player.Role}) killed by {source?.PlayerId ?? -1}:{sourceName}({sourceRoleStr})", "SNR.GameState");
@@ -136,7 +137,7 @@ public static class CustomDeathExtensions
                 if (ModeManager.IsMode(ModeId.SuperHostRoles))
                 {
                     if (AmongUsClient.Instance.AmHost)
-                        ShrMurderSync.Murder(source, player, explosion: true, finalStatus: FinalStatus.Samurai);
+                        SHRMurderSync.Murder(source, player, explosion: true, finalStatus: FinalStatus.Samurai);
                     break;
                 }
                 if (!TryKillEvent.Invoke(source, ref player).RefSuccess)

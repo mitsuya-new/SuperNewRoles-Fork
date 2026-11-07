@@ -17,7 +17,7 @@ using UnityEngine;
 
 namespace SuperNewRoles.Mode;
 
-public sealed class ShrTestRoleAbility : AbilityBase
+public sealed class SHRTestRoleAbility : AbilityBase
 {
     private bool configured;
     private float readyAt;
@@ -29,15 +29,16 @@ public sealed class ShrTestRoleAbility : AbilityBase
     internal bool TaskerImpostor { get; private set; }
     private bool grantedPet;
     private const string TestPet = "pet_test";
-    private static bool IsHostShr => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
+    private static bool IsHostSHR => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
         && ModeManager.IsMode(ModeId.SuperHostRoles);
 
-    internal static ShrAbilityTrigger TriggerFor(RoleId role) => role switch
+    internal static SHRAbilityTrigger TriggerFor(RoleId role) => role switch
     {
-        RoleId.SelfBomber => ShrAbilityTrigger.Phantom,
-        RoleId.Samurai => ShrAbilityTrigger.Phantom,
-        RoleId.Jackal => ShrAbilityTrigger.Phantom,
-        RoleId.Tasker => ShrAbilityTrigger.Pet,
+        RoleId.SelfBomber => SHRAbilityTrigger.Phantom,
+        RoleId.Samurai => SHRAbilityTrigger.Phantom,
+        RoleId.WaveCannon => SHRAbilityTrigger.Phantom,
+        RoleId.Jackal => SHRAbilityTrigger.Phantom,
+        RoleId.Tasker => SHRAbilityTrigger.Pet,
         _ => 0,
     };
 
@@ -53,10 +54,10 @@ public sealed class ShrTestRoleAbility : AbilityBase
 
     public static void AttachIfSupported(ExPlayerControl player)
     {
-        if (!IsHostShr || !NeedsVanillaControls(player) || TriggerFor(player.Role) == 0) return;
+        if (!IsHostSHR || !NeedsVanillaControls(player) || TriggerFor(player.Role) == 0) return;
         if (player.Role == RoleId.Tasker && !Tasker.TaskerCanKill) return;
         Logger.Debug($"Binding player={player.PlayerId} role={player.Role} trigger={TriggerFor(player.Role)}", "SHR.Controls");
-        player.AttachAbility(new ShrTestRoleAbility(), new AbilityParentRole(player, player.roleBase));
+        player.AttachAbility(new SHRTestRoleAbility(), new AbilityParentRole(player, player.roleBase));
     }
 
     public override void AttachToAlls()
@@ -65,10 +66,11 @@ public sealed class ShrTestRoleAbility : AbilityBase
         {
             RoleId.SelfBomber => SelfBomber.SelfBomberCooldown,
             RoleId.Samurai => Samurai.SamuraiKillCooldown,
+            RoleId.WaveCannon => WaveCannon.WaveCannonCooldown,
             RoleId.Jackal => Player.GetAbility<JackalAbility>()?.JackData.SidekickCooldown ?? 0f,
             _ => 0f,
         };
-        var trigger = new ShrAbilityTriggerAbility(TriggerFor(Player.Role), _ => Use(),
+        var trigger = new SHRAbilityTriggerAbility(TriggerFor(Player.Role), _ => Use(),
             CanUse, cooldown);
         Player.AttachAbility(trigger, new AbilityParentAbility(this));
         SubscribeWithAbility(WrapUpEvent.Instance, _ => ResetInitialCooldown(cooldown));
@@ -88,8 +90,8 @@ public sealed class ShrTestRoleAbility : AbilityBase
             InitialCooldownType.OneThird => cooldown / 3f,
             _ => 10f,
         });
-        Player.GetAbility<ShrAbilityTriggerAbility>()?.ResetCooldown(Time.unscaledTime, readyAt - Time.unscaledTime);
-        ShrPlayerOptions.Send(Player.Player, abilityCooldown: Mathf.Max(0f, readyAt - Time.unscaledTime), resetAbility: true);
+        Player.GetAbility<SHRAbilityTriggerAbility>()?.ResetCooldown(Time.unscaledTime, readyAt - Time.unscaledTime);
+        SHRPlayerOptions.Send(Player.Player, abilityCooldown: Mathf.Max(0f, readyAt - Time.unscaledTime), resetAbility: true);
     }
 
     private bool CanUse()
@@ -99,6 +101,8 @@ public sealed class ShrTestRoleAbility : AbilityBase
         bool available = ready && (Player.Role != RoleId.Jackal || target != null);
         if (Player.Role == RoleId.Samurai)
             available &= Player.GetAbility<AreaKillButtonAbility>() is { IsUsed: false } area && area.CanKill();
+        if (Player.Role == RoleId.WaveCannon)
+            available &= Player.GetAbility<WaveCannonAbility>()?.SHRController?.CanStart == true;
         Logger.Debug($"Ability availability player={Player.PlayerId} role={Player.Role} configured={configured} ready={ready} target={target?.PlayerId} allowed={available}", "SHR.Controls");
         return available;
     }
@@ -115,6 +119,9 @@ public sealed class ShrTestRoleAbility : AbilityBase
     {
         switch (Player.Role)
         {
+            case RoleId.WaveCannon:
+                Player.GetAbility<WaveCannonAbility>()?.SHRController?.TryStart();
+                break;
             case RoleId.Samurai:
                 if (Player.GetAbility<AreaKillButtonAbility>()?.TryUseAreaKill(invokeCallback: false) == true)
                 {
@@ -126,7 +133,7 @@ public sealed class ShrTestRoleAbility : AbilityBase
                 if (!Tasker.TaskerCanKill) break;
                 TaskerImpostor = !TaskerImpostor;
                 SetSelfRole(Player.Player, TaskerImpostor ? RoleTypes.Impostor : RoleTypes.Crewmate);
-                ShrPlayerOptions.Send(Player.Player, killCooldown: ShrKillRequests.RemainingCooldown(Player.Player), resetKill: true);
+                SHRPlayerOptions.Send(Player.Player, killCooldown: SHRKillRequests.RemainingCooldown(Player.Player), resetKill: true);
                 break;
             case RoleId.SelfBomber:
                 Explode();
@@ -153,7 +160,7 @@ public sealed class ShrTestRoleAbility : AbilityBase
     }
 
     private static void VanillaMurder(ExPlayerControl source, ExPlayerControl target)
-        => ShrMurderSync.Murder(source, target, explosion: true);
+        => SHRMurderSync.Murder(source, target, explosion: true);
 
     private void Configure()
     {
@@ -161,9 +168,13 @@ public sealed class ShrTestRoleAbility : AbilityBase
         Logger.Debug($"Configuring player={Player.PlayerId} role={Player.Role}", "SHR.Controls");
         originalRole = Player.Data.Role.Role;
         configured = true;
-        ShrPlayerOptions.Send(Player.Player);
+        SHRPlayerOptions.Send(Player.Player);
         switch (Player.Role)
         {
+            case RoleId.WaveCannon:
+                SendRoleView(Player.Player, Player.Player, RoleTypes.Phantom);
+                ResetInitialCooldown(WaveCannon.WaveCannonCooldown);
+                break;
             case RoleId.Samurai:
                 SendRoleView(Player.Player, Player.Player, RoleTypes.Phantom);
                 ResetInitialCooldown(Samurai.SamuraiKillCooldown);
@@ -226,7 +237,7 @@ public sealed class ShrTestRoleAbility : AbilityBase
 
     private void Restore()
     {
-        if (!IsHostShr || Player?.Data == null || Player.Data.Disconnected) return;
+        if (!IsHostSHR || Player?.Data == null || Player.Data.Disconnected) return;
         if (grantedPet && Player.Data.DefaultOutfit.PetId == TestPet) Player.Player.RpcSetPet("");
         grantedPet = false;
         if (configured && Player.IsAlive()) SendRoleView(Player.Player, Player.Player, originalRole);
@@ -240,10 +251,10 @@ public sealed class ShrTestRoleAbility : AbilityBase
     {
         public static void Postfix()
         {
-            if (!IsHostShr) return;
+            if (!IsHostSHR) return;
             roundReady = true;
             foreach (var player in ExPlayerControl.ExPlayerControls.ToArray())
-                player.GetAbility<ShrTestRoleAbility>()?.Configure();
+                player.GetAbility<SHRTestRoleAbility>()?.Configure();
         }
     }
 
@@ -253,7 +264,7 @@ public sealed class ShrTestRoleAbility : AbilityBase
         public static void Prefix()
         {
             roundReady = false;
-            ShrKillRequests.Reset();
+            SHRKillRequests.Reset();
         }
     }
 
@@ -262,10 +273,10 @@ public sealed class ShrTestRoleAbility : AbilityBase
     {
         public static void Prefix()
         {
-            if (!IsHostShr) return;
+            if (!IsHostSHR) return;
             roundReady = false;
             foreach (var player in ExPlayerControl.ExPlayerControls.ToArray())
-                player.GetAbility<ShrTestRoleAbility>()?.Restore();
+                player.GetAbility<SHRTestRoleAbility>()?.Restore();
         }
     }
 }
