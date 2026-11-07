@@ -52,7 +52,8 @@ public static class CheckTaskCompletionPatch
 {
     public static bool Prefix(ref bool __result)
     {
-        if (!CustomOptionManager.DebugMode || !CustomOptionManager.DebugModeNoGameEnd)
+        bool disabledTaskWin = ModeManager.IsMode(ModeId.SuperHostRoles) && GameSettingOptions.DisableTaskWin;
+        if (!disabledTaskWin && (!CustomOptionManager.DebugMode || !CustomOptionManager.DebugModeNoGameEnd))
             return true;
 
         __result = false;
@@ -91,6 +92,8 @@ public static class CheckGameEndPatch
 
     public static bool Prefix()
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles))
+            return CouldCheckEndGame && !(CustomOptionManager.DebugMode && CustomOptionManager.DebugModeNoGameEnd);
         if (!CouldCheckEndGame) return false;
         try
         {
