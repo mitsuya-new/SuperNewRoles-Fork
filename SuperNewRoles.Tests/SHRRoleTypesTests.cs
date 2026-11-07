@@ -8,6 +8,12 @@ namespace SuperNewRoles.Tests;
 public class SHRRoleTypesTests
 {
     [Theory]
+    [InlineData(true, RoleTypes.Engineer)]
+    [InlineData(false, RoleTypes.Crewmate)]
+    public void MadKillerUsesEngineerOnlyWhenVentingIsEnabled(bool canVent, RoleTypes expected)
+        => Assert.Equal(expected, SHRRoleTypes.GetMadKillerRole(canVent));
+
+    [Theory]
     [InlineData(true, RoleTypes.Phantom)]
     [InlineData(false, RoleTypes.Impostor)]
     public void VampireControlsFollowDependentCreationOption(bool canCreate, RoleTypes expected)

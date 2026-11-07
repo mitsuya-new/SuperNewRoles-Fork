@@ -16,6 +16,10 @@ public class SHRSamuraiTests
     [InlineData(RoleId.Samurai, true, VentilationSystem.Operation.Enter, false)]
     [InlineData(RoleId.Samurai, true, VentilationSystem.Operation.Move, false)]
     [InlineData(RoleId.Impostor, false, VentilationSystem.Operation.Enter, false)]
+    [InlineData(RoleId.MadKiller, false, VentilationSystem.Operation.Enter, true)]
+    [InlineData(RoleId.MadKiller, false, VentilationSystem.Operation.Move, true)]
+    [InlineData(RoleId.MadKiller, false, VentilationSystem.Operation.Exit, false)]
+    [InlineData(RoleId.MadKiller, true, VentilationSystem.Operation.Enter, false)]
     [InlineData(RoleId.Crewmate, false, VentilationSystem.Operation.StartCleaning, false)]
     public void VentRestrictionBlocksOnlyDisabledSamuraiEntryAndMovement(
         RoleId role, bool canVent, VentilationSystem.Operation operation, bool expected)
