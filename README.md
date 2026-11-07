@@ -3,6 +3,10 @@
 > This mod is not affiliated with Among Us or Innersloth LLC, and the content contained therein is not endorsed or otherwise sponsored by Innersloth LLC. Portions of the materials contained herein are property of Innersloth LLC. © Innersloth LLC.
 > 訳: これはInnerslothが作ったものじゃなくて個人が作ったものなのでInnerslothは関係ないよ！また、この中にある素材の一部はInnerslothのものだよ！
 
+> [!WARNING]
+> これは配布せずファイルをアップロードする用のリポジトリです。<br>
+> SuperHostRoles Modeを独自実装します。完成次第PRを予定しています。
+
 ## SuperNewRolesに関する情報
 [公式Wiki](https://wiki.supernewroles.com)<br>
 [公式Github](https://github.com/ykundesu/SuperNewRoles)
