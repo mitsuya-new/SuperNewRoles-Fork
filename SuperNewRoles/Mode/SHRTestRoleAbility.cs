@@ -1,0 +1,271 @@
+using System.Linq;
+using AmongUs.GameOptions;
+using AmongUs.InnerNet.GameDataMessages;
+using HarmonyLib;
+using Hazel;
+using InnerNet;
+using SuperNewRoles.CustomOptions.Categories;
+using SuperNewRoles.Events;
+using SuperNewRoles.Events.PCEvents;
+using SuperNewRoles.Modules;
+using SuperNewRoles.Patches;
+using SuperNewRoles.Roles;
+using SuperNewRoles.Roles.Ability;
+using SuperNewRoles.Roles.Ability.CustomButton;
+using SuperNewRoles.Roles.Impostor;
+using UnityEngine;
+
+namespace SuperNewRoles.Mode;
+
+public sealed class ShrTestRoleAbility : AbilityBase
+{
+    private bool configured;
+    private float readyAt;
+    private RoleTypes originalRole;
+    private static bool roundReady;
+    internal bool SidekickCompleted { get; private set; }
+    internal bool PhantomAbilityCompleted => SidekickCompleted
+        || (Player.Role == RoleId.Samurai && Player.GetAbility<AreaKillButtonAbility>()?.IsUsed == true);
+    internal bool TaskerImpostor { get; private set; }
+    private bool grantedPet;
+    private const string TestPet = "pet_test";
+    private static bool IsHostShr => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
+        && ModeManager.IsMode(ModeId.SuperHostRoles);
+
+    internal static ShrAbilityTrigger TriggerFor(RoleId role) => role switch
+    {
+        RoleId.SelfBomber => ShrAbilityTrigger.Phantom,
+        RoleId.Samurai => ShrAbilityTrigger.Phantom,
+        RoleId.Jackal => ShrAbilityTrigger.Phantom,
+        RoleId.Tasker => ShrAbilityTrigger.Pet,
+        _ => 0,
+    };
+
+    internal static bool NeedsVanillaControls(bool isOwner, bool hasSnr)
+        => !isOwner && !hasSnr;
+
+    private static bool NeedsVanillaControls(ExPlayerControl player)
+    {
+        bool hasSnr = SyncVersion.VersionData.VersionMap.TryGetValue(player.PlayerId, out string version)
+            && !string.IsNullOrEmpty(version);
+        return NeedsVanillaControls(player.AmOwner, hasSnr);
+    }
+
+    public static void AttachIfSupported(ExPlayerControl player)
+    {
+        if (!IsHostShr || !NeedsVanillaControls(player) || TriggerFor(player.Role) == 0) return;
+        if (player.Role == RoleId.Tasker && !Tasker.TaskerCanKill) return;
+        Logger.Debug($"Binding player={player.PlayerId} role={player.Role} trigger={TriggerFor(player.Role)}", "SHR.Controls");
+        player.AttachAbility(new ShrTestRoleAbility(), new AbilityParentRole(player, player.roleBase));
+    }
+
+    public override void AttachToAlls()
+    {
+        float cooldown = Player.Role switch
+        {
+            RoleId.SelfBomber => SelfBomber.SelfBomberCooldown,
+            RoleId.Samurai => Samurai.SamuraiKillCooldown,
+            RoleId.Jackal => Player.GetAbility<JackalAbility>()?.JackData.SidekickCooldown ?? 0f,
+            _ => 0f,
+        };
+        var trigger = new ShrAbilityTriggerAbility(TriggerFor(Player.Role), _ => Use(),
+            CanUse, cooldown);
+        Player.AttachAbility(trigger, new AbilityParentAbility(this));
+        SubscribeWithAbility(WrapUpEvent.Instance, _ => ResetInitialCooldown(cooldown));
+        SubscribeWithAbility(IntroCutsceneInitializeEvent.Instance, () =>
+        {
+            roundReady = true;
+            Configure();
+        });
+        if (roundReady) Configure();
+    }
+
+    private void ResetInitialCooldown(float cooldown)
+    {
+        readyAt = Time.unscaledTime + (Player.Role == RoleId.Tasker ? 0f : GameSettingOptions.InitialCooldown switch
+        {
+            InitialCooldownType.Immediate => 0f,
+            InitialCooldownType.OneThird => cooldown / 3f,
+            _ => 10f,
+        });
+        Player.GetAbility<ShrAbilityTriggerAbility>()?.ResetCooldown(Time.unscaledTime, readyAt - Time.unscaledTime);
+        ShrPlayerOptions.Send(Player.Player, abilityCooldown: Mathf.Max(0f, readyAt - Time.unscaledTime), resetAbility: true);
+    }
+
+    private bool CanUse()
+    {
+        bool ready = configured && Time.unscaledTime >= readyAt && Player.IsAlive();
+        var target = Player.Role == RoleId.Jackal && ready ? FindSidekickTarget() : null;
+        bool available = ready && (Player.Role != RoleId.Jackal || target != null);
+        if (Player.Role == RoleId.Samurai)
+            available &= Player.GetAbility<AreaKillButtonAbility>() is { IsUsed: false } area && area.CanKill();
+        Logger.Debug($"Ability availability player={Player.PlayerId} role={Player.Role} configured={configured} ready={ready} target={target?.PlayerId} allowed={available}", "SHR.Controls");
+        return available;
+    }
+
+    private ExPlayerControl FindSidekickTarget()
+    {
+        var sidekick = Player.GetAbility<JackalAbility>()?.SidekickAbility;
+        if (sidekick == null) return null;
+        return TargetCustomButtonBase.SetTarget(targetingPlayer: Player.Player,
+            isTargetable: sidekick.CanCreateSidekickFor);
+    }
+
+    private void Use()
+    {
+        switch (Player.Role)
+        {
+            case RoleId.Samurai:
+                if (Player.GetAbility<AreaKillButtonAbility>()?.TryUseAreaKill(invokeCallback: false) == true)
+                {
+                    Samurai.RpcSamuraiAnimation(Player);
+                    SetSelfRole(Player.Player, RoleTypes.Impostor);
+                }
+                break;
+            case RoleId.Tasker:
+                if (!Tasker.TaskerCanKill) break;
+                TaskerImpostor = !TaskerImpostor;
+                SetSelfRole(Player.Player, TaskerImpostor ? RoleTypes.Impostor : RoleTypes.Crewmate);
+                ShrPlayerOptions.Send(Player.Player, killCooldown: ShrKillRequests.RemainingCooldown(Player.Player), resetKill: true);
+                break;
+            case RoleId.SelfBomber:
+                Explode();
+                break;
+            case RoleId.Jackal:
+                var target = FindSidekickTarget();
+                if (target != null && Player.GetAbility<JackalAbility>().SidekickAbility.TryCreateSidekick(target))
+                {
+                    SendRoleToAll(target.Player, RoleTypes.Crewmate);
+                    SidekickCompleted = true;
+                    SetSelfRole(Player.Player, RoleTypes.Impostor);
+                }
+                break;
+        }
+    }
+
+    private void Explode()
+    {
+        var victims = ExPlayerControl.ExPlayerControls.Where(p => p != Player && p.IsAlive()
+            && (!SelfBomber.SelfBomberOnlyKillCrewmates || !p.IsImpostor())
+            && Vector2.Distance(Player.Player.GetTruePosition(), p.Player.GetTruePosition()) <= SelfBomber.SelfBomberExplosionRadius).ToArray();
+        foreach (var victim in victims) VanillaMurder(Player, victim);
+        VanillaMurder(Player, Player);
+    }
+
+    private static void VanillaMurder(ExPlayerControl source, ExPlayerControl target)
+        => ShrMurderSync.Murder(source, target, explosion: true);
+
+    private void Configure()
+    {
+        if (configured || Player.Data?.Role == null || !Player.IsAlive() || !NeedsVanillaControls(Player)) return;
+        Logger.Debug($"Configuring player={Player.PlayerId} role={Player.Role}", "SHR.Controls");
+        originalRole = Player.Data.Role.Role;
+        configured = true;
+        ShrPlayerOptions.Send(Player.Player);
+        switch (Player.Role)
+        {
+            case RoleId.Samurai:
+                SendRoleView(Player.Player, Player.Player, RoleTypes.Phantom);
+                ResetInitialCooldown(Samurai.SamuraiKillCooldown);
+                break;
+            case RoleId.Tasker:
+                SetSelfRole(Player.Player, RoleTypes.Crewmate);
+                string pet = Player.Data.DefaultOutfit.PetId;
+                if (string.IsNullOrEmpty(pet) || pet.ToLowerInvariant() is "pet_emptypet" or "pet_enmptypet" or "pet_empty" or "pet_none" or "none")
+                {
+                    grantedPet = true;
+                    Player.Player.RpcSetPet(TestPet);
+                }
+                break;
+            case RoleId.SelfBomber:
+                SendRoleView(Player.Player, Player.Player, RoleTypes.Phantom);
+                ResetInitialCooldown(SelfBomber.SelfBomberCooldown);
+                break;
+            case RoleId.Jackal:
+                SetSelfRole(Player.Player, RoleTypes.Phantom);
+                ResetInitialCooldown(Player.GetAbility<JackalAbility>().JackData.SidekickCooldown);
+                break;
+        }
+    }
+
+    internal static void SetSelfRole(PlayerControl subject, RoleTypes role)
+    {
+        ExPlayerControl player = subject;
+        if (player == null || !NeedsVanillaControls(player)) return;
+        if (!subject.AmOwner && !player.IsImpostor() && role is RoleTypes.Phantom or RoleTypes.Impostor)
+        {
+            foreach (var other in PlayerControl.AllPlayerControls)
+                if (other != subject && other.Data?.Role != null && other.Data.Role.IsImpostor)
+                    SendRoleView(other, subject, RoleTypes.Scientist);
+        }
+        SendRoleView(subject, subject, role);
+    }
+
+    private static void SendRoleView(PlayerControl subject, PlayerControl viewer, RoleTypes role)
+    {
+        if (viewer.AmOwner) return;
+        int id = AmongUsClient.Instance.GetClientIdFromCharacter(viewer);
+        if (id < 0)
+        {
+            Logger.Debug($"Role view not sent: missing client ID for viewer={viewer.PlayerId}", "SHR.Controls");
+            return;
+        }
+        var writer = AmongUsClient.Instance.StartRpcImmediately(subject.NetId, (byte)RpcCalls.SetRole, SendOption.Reliable, id);
+        new RpcSetRoleMessage(subject.NetId, role, true).SerializeRpcValues(writer);
+        AmongUsClient.Instance.FinishRpcImmediately(writer);
+        Logger.Debug($"Role view sent subject={subject.PlayerId} viewer={viewer.PlayerId} client={id} role={role}", "SHR.Controls");
+    }
+
+    private static void SendRoleToAll(PlayerControl subject, RoleTypes role)
+    {
+        var writer = AmongUsClient.Instance.StartRpcImmediately(subject.NetId, (byte)RpcCalls.SetRole, SendOption.Reliable, -1);
+        new RpcSetRoleMessage(subject.NetId, role, true).SerializeRpcValues(writer);
+        AmongUsClient.Instance.FinishRpcImmediately(writer);
+        RoleManager.Instance.SetRole(subject, role);
+    }
+
+    private void Restore()
+    {
+        if (!IsHostShr || Player?.Data == null || Player.Data.Disconnected) return;
+        if (grantedPet && Player.Data.DefaultOutfit.PetId == TestPet) Player.Player.RpcSetPet("");
+        grantedPet = false;
+        if (configured && Player.IsAlive()) SendRoleView(Player.Player, Player.Player, originalRole);
+        configured = false;
+    }
+
+    public override void DetachToAlls() => Restore();
+
+    [HarmonyPatch(typeof(IntroCutscene), nameof(IntroCutscene.OnDestroy))]
+    public static class IntroPatch
+    {
+        public static void Postfix()
+        {
+            if (!IsHostShr) return;
+            roundReady = true;
+            foreach (var player in ExPlayerControl.ExPlayerControls.ToArray())
+                player.GetAbility<ShrTestRoleAbility>()?.Configure();
+        }
+    }
+
+    [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.CoStartGame))]
+    public static class StartPatch
+    {
+        public static void Prefix()
+        {
+            roundReady = false;
+            ShrKillRequests.Reset();
+        }
+    }
+
+    [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnGameEnd))]
+    public static class EndPatch
+    {
+        public static void Prefix()
+        {
+            if (!IsHostShr) return;
+            roundReady = false;
+            foreach (var player in ExPlayerControl.ExPlayerControls.ToArray())
+                player.GetAbility<ShrTestRoleAbility>()?.Restore();
+        }
+    }
+}
