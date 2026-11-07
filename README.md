@@ -1,51 +1,17 @@
-# SuperNewRoles
-![SNRImage](/images/SNRImage.png)
+# SuperNewRoles-Fork
 
 > This mod is not affiliated with Among Us or Innersloth LLC, and the content contained therein is not endorsed or otherwise sponsored by Innersloth LLC. Portions of the materials contained herein are property of Innersloth LLC. © Innersloth LLC.
 > 訳: これはInnerslothが作ったものじゃなくて個人が作ったものなのでInnerslothは関係ないよ！また、この中にある素材の一部はInnerslothのものだよ！
 
-## English
-- [Please see the English README here.](https://github.com/ykundesu/SuperNewRoles/blob/master/README_en.md)
-
 ## SuperNewRolesに関する情報
-SuperNewRolesに関する情報は[公式Wiki](https://wiki.supernewroles.com)をご覧ください。
+[公式Wiki](https://wiki.supernewroles.com)<br>
+[公式Github](https://github.com/ykundesu/SuperNewRoles)
 
-## 導入方法
-[公式Wikiの導入方法ページ](https://wiki.supernewroles.com/%E5%B0%8E%E5%85%A5%E6%96%B9%E6%B3%95)をご覧ください。
-
-<!-- hrの代わり -->
-## 
-> [!WARNING]
-> **SuperNewRoles を使用する際は [初めに読む場所](#初めに読む場所) に記載のページをご一読ください。**
-
-- 現在の状況(特にSuperHostRolesなどのホストモードの状態)につきましては[現在のMODの状況](https://github.com/SuperNewRoles/SuperNewRoles/wiki#%E7%8F%BE%E5%9C%A8%E3%81%AEmod%E3%81%AE%E7%8A%B6%E6%B3%81)をご覧ください。
-
-
-
-
-## README
-- 現在 SuperNewRoles Wiki に移行中のため、古い情報が含まれます。Wiki と内容が矛盾している場合は、Wiki を最新情報として参照してください。
-
-- 古いREADMEは以下のリンクからご覧いただけます。
-  - [日本語](https://github.com/ykundesu/SuperNewRoles/blob/master/READMEs/README_jp_old.md)
-
-  - [English](https://github.com/ykundesu/SuperNewRoles/blob/master/READMEs/README_en_old.md)
-
-## 支援
-### [FANBOX](https://supernewroles.fanbox.cc)で受け付けております。
-
-## 公式情報
+## SuperNewROles公式情報
 - [SuperNewRoles Wiki](https://wiki.supernewroles.com)
 - [SuperNewRoles公式 Discordサーバ](https://discord.gg/Cqfwx82ynN)
 - [SuperNewRoles公式 Twitter(現X)](https://x.com/SNROfficials)
 
-## 初めに読む場所
-- [**導入方法**](https://wiki.supernewroles.com/%E5%B0%8E%E5%85%A5%E6%96%B9%E6%B3%95)
-  - SuperNewRolesを入れる方法について解説しています。
-- [解析について](https://wiki.supernewroles.com/Description/Mod/%E8%A7%A3%E6%9E%90)
-  - SuperNewRolesでは、試合に使用された役職などを開発者に送信しています。
-  - このデータは、SuperNewRolesの改善に使用されます。
-  - 詳細については[解析について](https://wiki.supernewroles.com/Description/Mod/%E8%A7%A3%E6%9E%90)をご覧ください。
 - [役職一覧](https://wiki.supernewroles.com/Roles/%E5%BD%B9%E8%81%B7%E4%B8%80%E8%A6%A7)
   - SuperNewRolesで使用できる役職の一覧です。
 <!--
@@ -64,7 +30,20 @@ SuperNewRolesに関する情報は[公式Wiki](https://wiki.supernewroles.com)�
 - [バグ報告について_BugReport](https://github.com/SuperNewRoles/SuperNewRoles/wiki/%E3%83%90%E3%82%B0%E5%A0%B1%E5%91%8A%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6_BugReport) -->
 
 ### クレジット
-- [他Modから移植、または参考にした役職](https://github.com/ykundesu/SuperNewRoles/wiki/%E5%BD%B9%E8%81%B7%E4%B8%80%E8%A6%A7#%E4%BB%96%E3%81%AEmod%E3%81%8B%E3%82%89%E7%A7%BB%E6%A4%8D-%E5%8F%88%E3%81%AF%E5%8F%82%E8%80%83%E3%81%AB%E3%81%97%E3%81%9F%E5%BD%B9%E8%81%B7)
+- ## 他のMODから移植・参考にした役職
+
+| **移植・参考元** | **役名** |
+| --- | --- |
+| [au.libhalt.net](https://au.libhalt.net/) | ナイス猫又<br>イビル猫又<br>てるてる、マッドてるてる（名前はこちらに由来） |
+| Dhalucard<br>（TORより引用） | ジャッカル<br>サイドキック |
+| [ExtremeRoles](https://github.com/yukieiji/ExtremeRoles) | アサシンとマーリン<br>パン屋<br>スマッシャー |
+| [TheOtherRoles](https://github.com/TheOtherRolesAU/TheOtherRoles) | ヴァンパイア<br>クリーナー<br>マッドクリーナー<br>シーア<br>マッドシーア<br>イビルシーア<br>ジャッカルシーア<br>サイドキック(シーア<br>シーアフレンズ<br>マフィア<br>カモフラージャー<br>ゲッサー、イビルゲッサー<br>ライター<br>マッドメイト<br>ベイト<br>メイヤー、マッドメイヤー<br>選挙管理委員<br>移植：ナイスウォッチャー<br>ヴァルチャー<br>オポチュニスト<br>アーソニスト |
+| [TheOtherRolesGM](https://github.com/yukinogatari/TheOtherRoles-GM) | シリアルキラー<br>ネコカボチャ<br>参考：妖狐 |
+| TheOtherRolesGMHaoming | イビルハッカー<br>黒猫<br>さつまといも<br>参考：ジキルとハイド |
+| [Maartii](https://github.com/Maartii/Jester)<br>（TORより引用） | てるてる<br>マッドてるてる |
+| [Woodi-dev](https://github.com/Woodi-dev/Among-Us-Love-Couple-Mod)<br>（TORより引用） | ラバーズ |
+| [Woodi-dev](https://github.com/Woodi-dev/Among-Us-Sheriff-Mod)<br>（TORより引用） | 移植：シェリフ<br>参考：リモートシェリフ、ミーティングシェリフ |
+| [Nebula on the Ship](https://github.com/Dolly1016/Nebula) | モディファイアゲッサー |
 <!-- ### Modを使用する時に 確認して頂きたい情報
 - 緊急性が高い情報や, 周知が必要な一過性の問題の情報等
   - [**⚠警告**](https://github.com/ykundesu/SuperNewRoles/wiki#%E8%AD%A6%E5%91%8A)
