@@ -25,7 +25,7 @@ public class SHRRoleTypesTests
     [InlineData(RoleId.Doppelganger, RoleTypes.Shapeshifter)]
     [InlineData(RoleId.EvilHacker, RoleTypes.Shapeshifter)]
     [InlineData(RoleId.ShiftActor, RoleTypes.Shapeshifter)]
-    [InlineData(RoleId.SuicideWisher, RoleTypes.Shapeshifter)]
+    [InlineData(RoleId.SuicideWisher, RoleTypes.Phantom)]
     [InlineData(RoleId.Camouflager, RoleTypes.Phantom)]
     [InlineData(RoleId.DoubleKiller, RoleTypes.Phantom)]
     [InlineData(RoleId.EvilButtoner, RoleTypes.Phantom)]

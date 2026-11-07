@@ -14,13 +14,13 @@ public static class SHRRoleTypes
     public static RoleTypes? GetInitialRole(RoleId role) => role switch
     {
         RoleId.Banshee or RoleId.Conjurer or RoleId.Doppelganger or RoleId.EvilHacker
-            or RoleId.ShiftActor or RoleId.SuicideWisher or RoleId.SerialKiller => RoleTypes.Shapeshifter,
+            or RoleId.ShiftActor or RoleId.SerialKiller => RoleTypes.Shapeshifter,
         RoleId.Camouflager or RoleId.DoubleKiller or RoleId.EvilButtoner or RoleId.EvilDoorr
             or RoleId.EvilMoving or RoleId.EvilScientist or RoleId.EvilSpeedBooster
             or RoleId.Jammer or RoleId.Magaziner or RoleId.Nun or RoleId.Penguin
             or RoleId.Pusher or RoleId.RemoteController or RoleId.Robber or RoleId.Rocket
             or RoleId.Samurai or RoleId.SelfBomber or RoleId.SideKiller or RoleId.Teleporter
-            or RoleId.WaveCannon or RoleId.Jackal => RoleTypes.Phantom,
+            or RoleId.WaveCannon or RoleId.Jackal or RoleId.SuicideWisher => RoleTypes.Phantom,
         RoleId.DarkKiller or RoleId.EvilGambler or RoleId.EvilGuesser or RoleId.EvilNekomata
             or RoleId.EvilSeer or RoleId.Finder or RoleId.Mafia or RoleId.NekoKabocha
             or RoleId.OverKiller or RoleId.Pursuer or RoleId.VampireDependent

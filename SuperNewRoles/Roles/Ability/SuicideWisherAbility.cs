@@ -1,6 +1,7 @@
 using SuperNewRoles.Modules;
 using SuperNewRoles.Roles.Ability.CustomButton;
 using UnityEngine;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Ability;
 
@@ -30,6 +31,12 @@ public class SuicideWisherAbility : CustomButtonBase
     [CustomRPC]
     public static void RpcSuicide(ExPlayerControl player)
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            if (AmongUsClient.Instance?.AmHost == true)
+                SHRMurderSync.Murder(player, player, finalStatus: FinalStatus.Suicide);
+            return;
+        }
         // 自殺処理のRPC
         player.CustomDeath(CustomDeathType.Suicide);
     }

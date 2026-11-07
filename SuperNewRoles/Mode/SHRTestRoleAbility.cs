@@ -41,6 +41,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         RoleId.Jackal => SHRAbilityTrigger.Phantom,
         RoleId.SideKiller => SHRAbilityTrigger.Phantom,
         RoleId.Penguin => SHRAbilityTrigger.Phantom,
+        RoleId.SuicideWisher => SHRAbilityTrigger.Phantom,
         RoleId.Tasker => SHRAbilityTrigger.Pet,
         _ => 0,
     };
@@ -73,6 +74,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
             RoleId.Jackal => Player.GetAbility<JackalAbility>()?.JackData.SidekickCooldown ?? 0f,
             RoleId.SideKiller => SideKiller.SideKillerKillCooldown,
             RoleId.Penguin => Penguin.PenguinCooldown,
+            RoleId.SuicideWisher => SuicideWisher.SuicideWisherCoolTime,
             _ => 0f,
         };
         var trigger = new SHRAbilityTriggerAbility(TriggerFor(Player.Role), _ => Use(),
@@ -138,6 +140,9 @@ public sealed class SHRTestRoleAbility : AbilityBase
     {
         switch (Player.Role)
         {
+            case RoleId.SuicideWisher:
+                SuicideWisherAbility.RpcSuicide(Player);
+                break;
             case RoleId.Penguin:
                 Player.GetAbility<PenguinAbility>()?.TryStartSHR();
                 break;
@@ -234,6 +239,10 @@ public sealed class SHRTestRoleAbility : AbilityBase
             case RoleId.Penguin:
                 SetSelfRole(Player.Player, RoleTypes.Phantom);
                 ResetInitialCooldown(Penguin.PenguinCooldown);
+                break;
+            case RoleId.SuicideWisher:
+                SetSelfRole(Player.Player, RoleTypes.Phantom);
+                ResetInitialCooldown(SuicideWisher.SuicideWisherCoolTime);
                 break;
         }
     }

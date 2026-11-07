@@ -30,6 +30,7 @@ public static class SHRPlayerOptions
         RoleId.SerialKiller => player.GetAbility<SuicideTimerAbility>()?.NativeCooldown ?? 0f,
         RoleId.SideKiller => SideKiller.SideKillerKillCooldown,
         RoleId.Penguin => player.GetAbility<PenguinAbility>()?.SHRAbilityCooldown ?? Penguin.PenguinCooldown,
+        RoleId.SuicideWisher => SuicideWisher.SuicideWisherCoolTime,
         _ => 0f,
     };
 
@@ -66,7 +67,7 @@ public static class SHRPlayerOptions
         if (playerSpeed.HasValue) options.SetFloat(FloatOptionNames.PlayerSpeedMod, playerSpeed.Value);
         float kill = UnityEngine.Mathf.Max(0.001f, killCooldown ?? KillCooldown(ex));
         options.SetFloat(FloatOptionNames.KillCooldown, resetKill ? kill * 2f : kill);
-        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SideKiller or RoleId.Penguin)
+        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SideKiller or RoleId.Penguin or RoleId.SuicideWisher)
             options.SetFloat(FloatOptionNames.PhantomCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
         if (ex.Role == RoleId.SerialKiller)
             options.SetFloat(FloatOptionNames.ShapeshifterCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
