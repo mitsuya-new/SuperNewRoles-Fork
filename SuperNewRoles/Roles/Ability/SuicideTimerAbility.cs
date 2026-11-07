@@ -2,6 +2,7 @@ using System;
 using SuperNewRoles.Events;
 using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.Modules;
+using SuperNewRoles.Mode;
 using TMPro;
 using UnityEngine;
 
@@ -14,6 +15,8 @@ public class SuicideTimerAbility : AbilityBase
     private float timer;
     public float CurrentTimer => timer;
     private bool firstKilled = false;
+    internal float NativeCooldown => firstKilled ? Math.Max(0f, timer) : 0f;
+    private bool IsSHR => ModeManager.IsMode(ModeId.SuperHostRoles);
     private TextMeshPro timerText;
     private int _lastDisplayedSeconds = int.MinValue;
 
@@ -40,6 +43,15 @@ public class SuicideTimerAbility : AbilityBase
         timerText.gameObject.SetActive(true);
     }
 
+    public override void AttachToOthers()
+    {
+        if (!IsSHR || AmongUsClient.Instance?.AmHost != true) return;
+        SubscribeWithAbility(MurderEvent.Instance, OnMurder);
+        SubscribeWithAbility(WrapUpEvent.Instance, OnWrapUp);
+        SubscribeWithAbility(FixedUpdateEvent.Instance, OnUpdate);
+        ResetSuicideTimer();
+    }
+
     public override void DetachToLocalPlayer()
     {
         base.DetachToLocalPlayer();
@@ -54,17 +66,31 @@ public class SuicideTimerAbility : AbilityBase
     {
         if (Player == null) return;
         if (data.killer == null) return;
+        if (IsSHR && (!data.resultFlags.HasFlag(MurderResultFlags.Succeeded)
+            || data.target == null || data.target.PlayerId == Player.PlayerId || !data.target.IsDead())) return;
         if (Player.PlayerId == data.killer.PlayerId)
         {
             // キルが発生した時にタイマーをリセット
             ResetSuicideTimer();
             firstKilled = true;
+            SyncNativeTimer();
         }
     }
 
     private void OnWrapUp(WrapUpEventData data)
     {
         if (Player == null) return;
+
+        if (IsSHR)
+        {
+            if (ResetOnMeetingGetter()) ResetSuicideTimer();
+            new LateTask(() =>
+            {
+                if (Player?.GetAbility<SuicideTimerAbility>() != this || !Player.IsAlive()) return;
+                SyncNativeTimer();
+            }, 0.5f, "SHR SerialKiller Timer After Meeting");
+            return;
+        }
 
         // 会議後にリセットする設定の場合
         if (ResetOnMeetingGetter())
@@ -83,11 +109,19 @@ public class SuicideTimerAbility : AbilityBase
         timer = suicideTime;
     }
 
+    private void SyncNativeTimer()
+    {
+        if (IsSHR && AmongUsClient.Instance?.AmHost == true && Player.IsAlive())
+            SHRPlayerOptions.Send(Player.Player, abilityCooldown: NativeCooldown, resetAbility: true);
+    }
+
     private void OnUpdate()
     {
-        if (MeetingHud.Instance != null || ExileController.Instance != null || !firstKilled)
+        if (MeetingHud.Instance != null || ExileController.Instance != null || !firstKilled
+            || (IsSHR && (AmongUsClient.Instance == null || AmongUsClient.Instance.IsGameOver
+                || HudManager.Instance == null || HudManager.Instance.IsIntroDisplayed)))
             return;
-        if (ExPlayerControl.LocalPlayer.IsDead())
+        if (Player == null || Player.Data == null || Player.IsDead() || Player.Data.Disconnected)
         {
             if (timerText != null)
             {
@@ -99,7 +133,8 @@ public class SuicideTimerAbility : AbilityBase
         timer -= Time.fixedDeltaTime;
         if (timer <= 0)
         {
-            ExPlayerControl.LocalPlayer.RpcCustomDeath(CustomDeathType.Suicide);
+            if (!IsSHR || AmongUsClient.Instance.AmHost)
+                Player.RpcCustomDeath(CustomDeathType.Suicide);
         }
         if (timerText == null) return;
         int displaySeconds = ((int)timer) + 1;

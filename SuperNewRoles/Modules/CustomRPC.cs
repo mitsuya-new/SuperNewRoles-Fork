@@ -354,7 +354,7 @@ public static class CustomRPCManager
             // 受信処理から呼ばれた元メソッド自身の再送だけを防ぐ。
             // 別の RPC の受信後や、受信処理中に発生した別 RPC は送信する。
             bool received = TryConsumeReceivedRpc(__originalMethod);
-            if (SuperNewRoles.Mode.ShrVanillaRpcRouter.TryRoute(__originalMethod, __args, received))
+            if (SuperNewRoles.Mode.SHRVanillaRpcRouter.TryRoute(__originalMethod, __args, received))
                 return false;
             if (received)
                 return true;
@@ -390,7 +390,7 @@ public static class CustomRPCManager
             return true;
         var method = RpcMethods[id];
         bool received = TryConsumeReceivedRpc(method);
-        if (SuperNewRoles.Mode.ShrVanillaRpcRouter.TryRoute(method, args, received))
+        if (SuperNewRoles.Mode.SHRVanillaRpcRouter.TryRoute(method, args, received))
             return false;
         if (received)
             return true;

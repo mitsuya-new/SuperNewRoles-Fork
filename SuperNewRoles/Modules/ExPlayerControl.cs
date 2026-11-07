@@ -251,7 +251,7 @@ public class ExPlayerControl
             if (AmOwner)
                 SuperTrophyManager.RegisterTrophy(Role);
             roleBase = role;
-            SuperNewRoles.Mode.ShrTestRoleAbility.AttachIfSupported(this);
+            SuperNewRoles.Mode.SHRTestRoleAbility.AttachIfSupported(this);
             // ToArray()を使わずに、削除対象を後で処理
             List<ModifierRoleId> toDetach = null;
             foreach (var modifier in ModifierRoleBases)
@@ -284,7 +284,7 @@ public class ExPlayerControl
             Logger.Error($"SetRoleEvent.Invoke failed: {oldRole} -> {roleId}", "ExPlayerControl");
             Logger.Error(e.ToString(), "ExPlayerControl");
         }
-        if (AmOwner || SuperNewRoles.Mode.ShrVanillaRpcRouter.CanAssignTasks(this))
+        if (AmOwner || SuperNewRoles.Mode.SHRVanillaRpcRouter.CanAssignTasks(this))
         {
             AssignCustomTasks();
         }

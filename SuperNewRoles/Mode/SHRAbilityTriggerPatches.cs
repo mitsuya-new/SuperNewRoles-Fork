@@ -11,15 +11,15 @@ using UnityEngine;
 
 namespace SuperNewRoles.Mode;
 
-public static class ShrAbilityTriggerPatches
+public static class SHRAbilityTriggerPatches
 {
     private static bool IsHostMode => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
         && ModeManager.IsMode(ModeId.SuperHostRoles);
 
-    private static ShrAbilityTriggerAbility Find(PlayerControl player, ShrAbilityTrigger source)
+    private static SHRAbilityTriggerAbility Find(PlayerControl player, SHRAbilityTrigger source)
     {
         ExPlayerControl exPlayer = player;
-        return exPlayer?.GetAbilities<ShrAbilityTriggerAbility>().FirstOrDefault(a => a.Triggers.HasFlag(source));
+        return exPlayer?.GetAbilities<SHRAbilityTriggerAbility>().FirstOrDefault(a => a.Triggers.HasFlag(source));
     }
 
     internal static bool CanActivate(PlayerControl player)
@@ -30,7 +30,7 @@ public static class ShrAbilityTriggerPatches
             && !player.inVent && !player.walkingToVent && !player.onLadder && !player.inMovingPlat
             && !(ShipStatus.Instance?.TryCast<FungleShipStatus>()?.Zipline?.playerIdHands.ContainsKey(player.PlayerId) == true);
 
-    private static void Activate(PlayerControl player, ShrAbilityTriggerAbility ability, ShrAbilityTrigger source,
+    private static void Activate(PlayerControl player, SHRAbilityTriggerAbility ability, SHRAbilityTrigger source,
         PlayerControl target = null)
     {
         if (!CanActivate(player)) return;
@@ -64,31 +64,36 @@ public static class ShrAbilityTriggerPatches
 
     private static void HandlePet(PlayerControl player)
     {
-        var ability = Find(player, ShrAbilityTrigger.Pet);
+        var ability = Find(player, SHRAbilityTrigger.Pet);
         Logger.Debug($"Pet received player={player.PlayerId} handler={ability != null} allowed={CanActivate(player)}", "SHR.Controls");
         if (ability == null || !CanActivate(player)) return;
         if (!ability.TryConsumeInput(Time.unscaledTime)) return;
-        Activate(player, ability, ShrAbilityTrigger.Pet);
+        Activate(player, ability, SHRAbilityTrigger.Pet);
         player.MyPhysics.RpcCancelPet();
         player.MyPhysics.CancelPet();
     }
 
-    internal static ShrAbilityTrigger GetShapeshiftTrigger(bool isSelf)
-        => isSelf ? ShrAbilityTrigger.ShapeshiftSelf : ShrAbilityTrigger.Shapeshift;
+    internal static SHRAbilityTrigger GetShapeshiftTrigger(bool isSelf)
+        => isSelf ? SHRAbilityTrigger.ShapeshiftSelf : SHRAbilityTrigger.Shapeshift;
 
     public static bool HandleShapeshift(PlayerControl player, PlayerControl target)
     {
         if (!IsHostMode) return false;
+        if (((ExPlayerControl)player).Role == Roles.RoleId.SerialKiller)
+        {
+            player.RpcRejectShapeshift();
+            return true;
+        }
         var source = GetShapeshiftTrigger(player.PlayerId == target.PlayerId);
         var ability = Find(player, source);
         if (ability == null) return false;
         player.RpcRejectShapeshift();
         if (!CanActivate(player) || target.Data == null || target.Data.Disconnected
-            || (target.Data.IsDead && source == ShrAbilityTrigger.Shapeshift)
+            || (target.Data.IsDead && source == SHRAbilityTrigger.Shapeshift)
             || !ability.TryConsumeInput(Time.unscaledTime)) return true;
         Activate(player, ability, source, target);
         if (CanActivate(player))
-            ShrPlayerOptions.Send(player, abilityCooldown: ability.RemainingCooldown(Time.unscaledTime), resetAbility: true);
+            SHRPlayerOptions.Send(player, abilityCooldown: ability.RemainingCooldown(Time.unscaledTime), resetAbility: true);
         return true;
     }
 
@@ -109,11 +114,11 @@ public static class ShrAbilityTriggerPatches
     private static bool HandlePhantom(PlayerControl player)
     {
         if (!IsHostMode) return true;
-        var ability = Find(player, ShrAbilityTrigger.Phantom);
+        var ability = Find(player, SHRAbilityTrigger.Phantom);
         Logger.Debug($"Phantom received player={player.PlayerId} handler={ability != null} allowed={CanActivate(player)}", "SHR.Controls");
         if (ability == null) return true;
         if (!CanActivate(player) || !ability.TryConsumeInput(Time.unscaledTime)) return false;
-        Activate(player, ability, ShrAbilityTrigger.Phantom);
+        Activate(player, ability, SHRAbilityTrigger.Phantom);
         if (CanActivate(player)) ResetPhantomButton(player, ability.RemainingCooldown(Time.unscaledTime));
         return false;
     }
@@ -129,10 +134,10 @@ public static class ShrAbilityTriggerPatches
         if (clientId < 0) return;
         SendRole(RoleTypes.Impostor);
         ExPlayerControl exPlayer = player;
-        bool completed = exPlayer.GetAbility<ShrTestRoleAbility>()?.PhantomAbilityCompleted == true;
+        bool completed = exPlayer.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true;
         if (!completed) SendRole(RoleTypes.Phantom);
-        ShrPlayerOptions.Send(player, abilityCooldown: remaining,
-            killCooldown: ShrKillRequests.RemainingCooldown(player), resetAbility: !completed, resetKill: true);
+        SHRPlayerOptions.Send(player, abilityCooldown: remaining,
+            killCooldown: SHRKillRequests.RemainingCooldown(player), resetAbility: !completed, resetKill: true);
         void SendRole(RoleTypes role)
         {
             var writer = AmongUsClient.Instance.StartRpcImmediately(player.NetId, (byte)RpcCalls.SetRole,

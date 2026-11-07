@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace SuperNewRoles.Mode;
 
-public static class ShrVanillaRpcRouter
+public static class SHRVanillaRpcRouter
 {
     internal enum Operation { None, Kill, Suicide, Exile, SetTasks, Report, SnapTo, Shapeshift, MurderResult }
 
@@ -61,10 +61,10 @@ public static class ShrVanillaRpcRouter
         switch (operation)
         {
             case Operation.Kill:
-                ShrMurderSync.Murder((ExPlayerControl)args[0], (ExPlayerControl)args[args.Length == 3 ? 1 : 0]);
+                SHRMurderSync.Murder((ExPlayerControl)args[0], (ExPlayerControl)args[args.Length == 3 ? 1 : 0]);
                 break;
             case Operation.Suicide:
-                ShrMurderSync.Murder((ExPlayerControl)args[args.Length == 3 ? 1 : 0],
+                SHRMurderSync.Murder((ExPlayerControl)args[args.Length == 3 ? 1 : 0],
                     (ExPlayerControl)args[args.Length == 3 ? 1 : 0], finalStatus: FinalStatus.Suicide);
                 break;
             case Operation.Exile:
@@ -85,7 +85,7 @@ public static class ShrVanillaRpcRouter
                 ((PlayerControl)args[0]).RpcShapeshift((PlayerControl)args[1], (bool)args[2]);
                 break;
             case Operation.MurderResult:
-                if ((bool)args[2]) ShrMurderSync.Murder((PlayerControl)args[0], (PlayerControl)args[1]);
+                if ((bool)args[2]) SHRMurderSync.Murder((PlayerControl)args[0], (PlayerControl)args[1]);
                 else ((PlayerControl)args[0]).RpcMurderPlayer((PlayerControl)args[1], false);
                 break;
         }

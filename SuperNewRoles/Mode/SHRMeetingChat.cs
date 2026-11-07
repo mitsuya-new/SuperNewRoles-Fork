@@ -8,16 +8,16 @@ using SuperNewRoles.Roles.Ability;
 
 namespace SuperNewRoles.Mode;
 
-public static class ShrMeetingChat
+public static class SHRMeetingChat
 {
     private static MeetingHud meeting;
     private static int generation;
     private static int privateSerialization;
     private static bool showingLocalSystemMessage;
     public static bool Ready { get; private set; }
-    private static bool IsHostShr => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
+    private static bool IsHostSHR => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
         && ModeManager.IsMode(ModeId.SuperHostRoles);
-    private static bool Active => IsHostShr && meeting != null && MeetingHud.Instance == meeting;
+    private static bool Active => IsHostSHR && meeting != null && MeetingHud.Instance == meeting;
 
     internal static bool HideSpeaker(bool viewerDead, bool speakerDead, bool isSelf)
         => !viewerDead && !speakerDead && !isSelf;
@@ -46,7 +46,7 @@ public static class ShrMeetingChat
 
     private static void Begin(MeetingHud instance)
     {
-        if (!IsHostShr) return;
+        if (!IsHostSHR) return;
         meeting = instance;
         Ready = false;
         int current = ++generation;
@@ -57,7 +57,7 @@ public static class ShrMeetingChat
             if (current != generation || !Active) return;
             Ready = true;
             Refresh();
-            if (announce) ShrGuesserCommands.SendMeetingInstructions();
+            if (announce) SHRGuesserCommands.SendMeetingInstructions();
         }
     }
 
@@ -66,7 +66,7 @@ public static class ShrMeetingChat
         if (!Active || !Ready) return;
         foreach (var viewer in PlayerControl.AllPlayerControls)
         {
-            if (!ShrPlayerOptions.IsVanillaGuest(viewer)) continue;
+            if (!SHRPlayerOptions.IsVanillaGuest(viewer)) continue;
             foreach (var subject in PlayerControl.AllPlayerControls)
                 SendState(viewer, subject, hide: true);
         }
@@ -74,14 +74,14 @@ public static class ShrMeetingChat
 
     public static void Restore()
     {
-        bool restore = IsHostShr && meeting != null;
+        bool restore = IsHostSHR && meeting != null;
         meeting = null;
         Ready = false;
         generation++;
         if (!restore) return;
         foreach (var viewer in PlayerControl.AllPlayerControls)
         {
-            if (!ShrPlayerOptions.IsVanillaGuest(viewer)) continue;
+            if (!SHRPlayerOptions.IsVanillaGuest(viewer)) continue;
             foreach (var subject in PlayerControl.AllPlayerControls)
                 SendState(viewer, subject, hide: false);
         }
@@ -96,14 +96,14 @@ public static class ShrMeetingChat
         {
             if (hide && HideSpeaker(viewer.Data.IsDead, dead, viewer.PlayerId == subject.PlayerId)) data.IsDead = true;
             ExPlayerControl ex = subject;
-            var role = ShrRoleAssignment.GetViewRole(ex.Role, originalRole.Role,
-                viewer.PlayerId == subject.PlayerId, ShrPlayerOptions.IsVanillaGuest(subject),
+            var role = SHRRoleAssignment.GetViewRole(ex.Role, originalRole.Role,
+                viewer.PlayerId == subject.PlayerId, SHRPlayerOptions.IsVanillaGuest(subject),
                 ((ExPlayerControl)viewer).Role, true, originalRole.IsImpostor);
             if (viewer.PlayerId == subject.PlayerId)
             {
-                if (ex.Role is RoleId.Jackal or RoleId.Samurai && ex.GetAbility<ShrTestRoleAbility>()?.PhantomAbilityCompleted == true)
+                if (ex.Role is RoleId.Jackal or RoleId.Samurai && ex.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true)
                     role = AmongUs.GameOptions.RoleTypes.Impostor;
-                if (ex.Role == RoleId.Tasker && ex.GetAbility<ShrTestRoleAbility>()?.TaskerImpostor == true)
+                if (ex.Role == RoleId.Tasker && ex.GetAbility<SHRTestRoleAbility>()?.TaskerImpostor == true)
                     role = AmongUs.GameOptions.RoleTypes.Impostor;
                 if (ex.Role == RoleId.MadKiller && ex.GetAbility<MadKillerAbility>()?.IsAwakened == true)
                     role = AmongUs.GameOptions.RoleTypes.Impostor;
@@ -152,7 +152,7 @@ public static class ShrMeetingChat
         if (!Active || !Ready || speaker.Data.IsDead) return;
         foreach (var viewer in PlayerControl.AllPlayerControls)
         {
-            if (!ShrPlayerOptions.IsVanillaGuest(viewer) || viewer == speaker || viewer.Data.IsDead) continue;
+            if (!SHRPlayerOptions.IsVanillaGuest(viewer) || viewer == speaker || viewer.Data.IsDead) continue;
             int id = AmongUsClient.Instance.GetClientIdFromCharacter(viewer);
             if (id < 0) continue;
             var writer = MessageWriter.Get(SendOption.Reliable);
@@ -175,7 +175,7 @@ public static class ShrMeetingChat
 
     public static void Reply(PlayerControl viewer, string text, string title = null)
     {
-        if (!IsHostShr || viewer?.Data == null || viewer.Data.Disconnected) return;
+        if (!IsHostSHR || viewer?.Data == null || viewer.Data.Disconnected) return;
         if (viewer.AmOwner)
         {
             ShowLocalSystemMessage(text, title);
@@ -193,7 +193,7 @@ public static class ShrMeetingChat
                 BeginRpc(RpcCalls.SendChat);
                 packet.Write(FormatAnnouncementText(text));
                 packet.EndMessage();
-                WriteName(ShrRoleNameDisplay.GetSelfDisplayName(viewer));
+                WriteName(SHRRoleNameDisplay.GetSelfDisplayName(viewer));
                 packet.EndMessage();
                 AmongUsClient.Instance.SendOrDisconnect(packet);
             }
@@ -226,12 +226,12 @@ public static class ShrMeetingChat
         {
             if (showingLocalSystemMessage) return true;
             if (!ModeManager.IsMode(ModeId.SuperHostRoles) || sourcePlayer?.Data == null || chatText == null) return true;
-            if (ShrGuesserCommands.IsCommand(chatText))
+            if (SHRGuesserCommands.IsCommand(chatText))
             {
-                if (IsHostShr) ShrGuesserCommands.Handle(sourcePlayer, chatText);
+                if (IsHostSHR) SHRGuesserCommands.Handle(sourcePlayer, chatText);
                 return false;
             }
-            if (IsHostShr) Relay(sourcePlayer, chatText);
+            if (IsHostSHR) Relay(sourcePlayer, chatText);
             return true;
         }
     }

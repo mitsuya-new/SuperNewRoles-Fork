@@ -12,7 +12,7 @@ using SuperNewRoles.Roles;
 
 namespace SuperNewRoles.Mode;
 
-public static class ShrRoleAssignment
+public static class SHRRoleAssignment
 {
     private static readonly Dictionary<byte, RoleTypes> VanillaRoles = new();
     private static int assignmentGeneration;
@@ -41,7 +41,7 @@ public static class ShrRoleAssignment
     {
         if (!unmoddedViewer) return vanillaRole;
         if (isSelf && unmoddedSubject)
-            return ShrRoleTypes.GetInitialRole(customRole) ?? vanillaRole;
+            return SHRRoleTypes.GetInitialRole(customRole) ?? vanillaRole;
         if (viewerRole is RoleId.Jackal or RoleId.Sheriff && subjectIsImpostor)
             return RoleTypes.Scientist;
         if (unmoddedSubject && customRole is RoleId.Jackal or RoleId.Sheriff)

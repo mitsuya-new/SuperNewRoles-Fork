@@ -10,7 +10,7 @@ using SuperNewRoles.Roles.Ability;
 
 namespace SuperNewRoles.Mode;
 
-public static class ShrGuesserCommands
+public static class SHRGuesserCommands
 {
     private const string Usage = "【ゲッサー】/bt [色] [役職名]\n例：/bt 赤 シェリフ（色番号・英語の役職名も使用可能）";
 
@@ -75,7 +75,7 @@ public static class ShrGuesserCommands
             error = "このコマンドはイビルゲッサー専用です。";
         else if (source.Data.IsDead) return;
         else if (MeetingHud.Instance == null) error = "会議中に使用してください。";
-        else if (!ShrMeetingChat.Ready) error = "会議開始後の案内が表示されてから入力してください。";
+        else if (!SHRMeetingChat.Ready) error = "会議開始後の案内が表示されてから入力してください。";
         else if (!TryParse(text, out var colorText, out var roleText)) error = Usage;
         else
         {
@@ -93,14 +93,14 @@ public static class ShrGuesserCommands
             }
         }
         error ??= "コマンドを実行できませんでした。";
-        ShrMeetingChat.Reply(source, error.StartsWith("【") ? error : "【ゲッサー】" + error);
+        SHRMeetingChat.Reply(source, error.StartsWith("【") ? error : "【ゲッサー】" + error);
     }
 
     public static void SendMeetingInstructions()
     {
         foreach (var player in ExPlayerControl.ExPlayerControls)
             if (player.Role == RoleId.EvilGuesser && player.IsAlive() && !player.Data.Disconnected)
-                ShrMeetingChat.Reply(player.Player, Usage + $"\n残り弾数：{player.GetAbility<GuesserAbility>()?.Count ?? 0}");
+                SHRMeetingChat.Reply(player.Player, Usage + $"\n残り弾数：{player.GetAbility<GuesserAbility>()?.Count ?? 0}");
     }
 
     public static void SendVanillaShot(PlayerControl killer, ExPlayerControl victim)
@@ -109,12 +109,12 @@ public static class ShrGuesserCommands
         if (client == null || !client.AmHost || !ModeManager.IsMode(ModeId.SuperHostRoles)) return;
         foreach (var viewer in PlayerControl.AllPlayerControls)
         {
-            if (!ShrPlayerOptions.IsVanillaGuest(viewer)) continue;
+            if (!SHRPlayerOptions.IsVanillaGuest(viewer)) continue;
             int id = client.GetClientIdFromCharacter(viewer);
             if (id < 0) continue;
             var writer = client.StartRpcImmediately(victim.Player.NetId, (byte)RpcCalls.Exiled, SendOption.Reliable, id);
             client.FinishRpcImmediately(writer);
-            ShrMeetingChat.Reply(viewer,
+            SHRMeetingChat.Reply(viewer,
                 ModTranslation.GetString("GuesserPlayerWasDead", Regex.Replace(victim.Data.DefaultOutfit.PlayerName, "<[^>]*>", "")) + "\n",
                 ModTranslation.GetString("GuesserBigNewsTitle"));
         }
@@ -125,7 +125,7 @@ public static class ShrGuesserCommands
     public static void RpcBigNews(string playerName)
     {
         if (!ModeManager.IsMode(ModeId.SuperHostRoles)) return;
-        ShrMeetingChat.ShowLocalSystemMessage(ModTranslation.GetString("GuesserPlayerWasDead", playerName),
+        SHRMeetingChat.ShowLocalSystemMessage(ModTranslation.GetString("GuesserPlayerWasDead", playerName),
             ModTranslation.GetString("GuesserBigNewsTitle"));
     }
 }

@@ -30,7 +30,7 @@ public static class RoleManagerSelectRolesPatch
         __state = false;
         if (ModeManager.IsMode(ModeId.SuperHostRoles))
         {
-            ShrRoleAssignment.Begin();
+            SHRRoleAssignment.Begin();
             return true;
         }
         // BattleRoyalは独自の配役経路を持つため、通常ゲーム用の公平化処理を通さない。
@@ -86,15 +86,15 @@ public static class RoleManagerSelectRolesPatch
         if (ModeManager.IsMode(ModeId.SuperHostRoles) && !AmongUsClient.Instance.AmHost)
             return;
         bool shr = ModeManager.IsMode(ModeId.SuperHostRoles);
-        if (shr) ShrRoleAssignment.PrepareModdedClients();
+        if (shr) SHRRoleAssignment.PrepareModdedClients();
         bool succeeded = AssignRoles.AssignCustomRoles();
-        if (shr) ShrRoleAssignment.Complete();
+        if (shr) SHRRoleAssignment.Complete();
         RoleAssignmentFairnessRuntime.FinishAssignment(succeeded);
     }
     public static Exception Finalizer(Exception __exception, bool __state)
     {
         if (__exception != null && ModeManager.IsMode(ModeId.SuperHostRoles))
-            ShrRoleAssignment.Abort();
+            SHRRoleAssignment.Abort();
         if (__exception != null && RoleAssignmentFairnessRuntime.MustStopAfterRoleRpcFailure)
             RoleAssignmentFairnessRuntime.AbortAssignment("UnhandledAssignmentException", null);
         return __exception;
@@ -211,7 +211,7 @@ public static class AssignRoles
         }
         foreach (var roleOption in RoleOptionManager.RoleOptions)
         {
-            if (ModeManager.IsMode(ModeId.SuperHostRoles) && !ShrRoleTypes.IsSupported(roleOption.RoleId))
+            if (ModeManager.IsMode(ModeId.SuperHostRoles) && !SHRRoleTypes.IsSupported(roleOption.RoleId))
                 continue;
             if (roleOption.NumberOfCrews <= 0)
                 continue;

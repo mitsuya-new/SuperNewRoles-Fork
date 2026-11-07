@@ -13,11 +13,11 @@ public sealed class SuperHostRolesMode : ModeBase<SuperHostRolesMode>
         Logger.Info("SuperHostRoles: host-side custom assignment and private role labels enabled.");
         SuperNewRoles.Events.IntroCutsceneInitializeEvent.Instance.AddListener(() =>
         {
-            ShrKillRequests.Initialize();
+            SHRKillRequests.Initialize();
             foreach (var player in ExPlayerControl.ExPlayerControls)
-                if (ShrVanillaRpcRouter.CanAssignTasks(player)) player.AssignCustomTasks();
+                if (SHRVanillaRpcRouter.CanAssignTasks(player)) player.AssignCustomTasks();
         });
-        SuperNewRoles.Events.WrapUpEvent.Instance.AddListener(_ => ShrKillRequests.Initialize());
+        SuperNewRoles.Events.WrapUpEvent.Instance.AddListener(_ => SHRKillRequests.Initialize());
     }
     public override void OnGameEnd() { }
     public override bool CheckWinCondition() => false;

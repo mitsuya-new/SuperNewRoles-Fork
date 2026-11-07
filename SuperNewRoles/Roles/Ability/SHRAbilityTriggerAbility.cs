@@ -3,7 +3,7 @@ using System;
 namespace SuperNewRoles.Roles.Ability;
 
 [Flags]
-public enum ShrAbilityTrigger
+public enum SHRAbilityTrigger
 {
     Pet = 1,
     Phantom = 2,
@@ -11,11 +11,11 @@ public enum ShrAbilityTrigger
     ShapeshiftSelf = 8,
 }
 
-public sealed class ShrAbilityTriggerAbility : AbilityBase
+public sealed class SHRAbilityTriggerAbility : AbilityBase
 {
-    public ShrAbilityTrigger Triggers { get; }
-    private readonly Action<ShrAbilityTrigger> activate;
-    private readonly Action<ShrAbilityTrigger, PlayerControl> activateWithTarget;
+    public SHRAbilityTrigger Triggers { get; }
+    private readonly Action<SHRAbilityTrigger> activate;
+    private readonly Action<SHRAbilityTrigger, PlayerControl> activateWithTarget;
     private readonly Func<bool> canActivate;
     private readonly float cooldown;
     private float readyAt;
@@ -35,11 +35,11 @@ public sealed class ShrAbilityTriggerAbility : AbilityBase
         return true;
     }
 
-    public ShrAbilityTriggerAbility(ShrAbilityTrigger triggers, Action<ShrAbilityTrigger> activate,
+    public SHRAbilityTriggerAbility(SHRAbilityTrigger triggers, Action<SHRAbilityTrigger> activate,
         Func<bool> canActivate = null, float cooldown = 0f)
     {
-        if (triggers == 0 || (triggers & ~(ShrAbilityTrigger.Pet | ShrAbilityTrigger.Phantom
-            | ShrAbilityTrigger.Shapeshift | ShrAbilityTrigger.ShapeshiftSelf)) != 0)
+        if (triggers == 0 || (triggers & ~(SHRAbilityTrigger.Pet | SHRAbilityTrigger.Phantom
+            | SHRAbilityTrigger.Shapeshift | SHRAbilityTrigger.ShapeshiftSelf)) != 0)
             throw new ArgumentOutOfRangeException(nameof(triggers));
         if (!float.IsFinite(cooldown) || cooldown < 0f) throw new ArgumentOutOfRangeException(nameof(cooldown));
         Triggers = triggers;
@@ -48,14 +48,14 @@ public sealed class ShrAbilityTriggerAbility : AbilityBase
         this.cooldown = cooldown;
     }
 
-    public ShrAbilityTriggerAbility(ShrAbilityTrigger triggers, Action<ShrAbilityTrigger, PlayerControl> activate,
+    public SHRAbilityTriggerAbility(SHRAbilityTrigger triggers, Action<SHRAbilityTrigger, PlayerControl> activate,
         Func<bool> canActivate = null, float cooldown = 0f)
         : this(triggers, _ => { }, canActivate, cooldown)
     {
         activateWithTarget = activate ?? throw new ArgumentNullException(nameof(activate));
     }
 
-    internal bool TryActivate(ShrAbilityTrigger source, float now, PlayerControl target = null)
+    internal bool TryActivate(SHRAbilityTrigger source, float now, PlayerControl target = null)
     {
         if (!Triggers.HasFlag(source) || now < readyAt || canActivate?.Invoke() == false) return false;
         readyAt = now + Math.Max(0.35f, cooldown);

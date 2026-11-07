@@ -62,7 +62,7 @@ public class MadKillerAbility : AbilityBase
         Player.AttachAbility(_killButtonAbility, parentAbility);
         if (AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
             && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
-            && SuperNewRoles.Mode.ShrPlayerOptions.IsVanillaGuest(Player.Player))
+            && SuperNewRoles.Mode.SHRPlayerOptions.IsVanillaGuest(Player.Player))
             SubscribeWithAbility(FixedUpdateEvent.Instance, OnFixedUpdate);
     }
     public override void AttachToLocalPlayer()
@@ -128,11 +128,11 @@ public class MadKillerAbility : AbilityBase
             ability._isAwakened = true;
         if (AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
             && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
-            && SuperNewRoles.Mode.ShrPlayerOptions.IsVanillaGuest(player.Player))
+            && SuperNewRoles.Mode.SHRPlayerOptions.IsVanillaGuest(player.Player))
         {
-            SuperNewRoles.Mode.ShrTestRoleAbility.SetSelfRole(player.Player, RoleTypes.Impostor);
-            SuperNewRoles.Mode.ShrPlayerOptions.Send(player.Player,
-                killCooldown: SuperNewRoles.Mode.ShrKillRequests.RemainingCooldown(player.Player), resetKill: true);
+            SuperNewRoles.Mode.SHRTestRoleAbility.SetSelfRole(player.Player, RoleTypes.Impostor);
+            SuperNewRoles.Mode.SHRPlayerOptions.Send(player.Player,
+                killCooldown: SuperNewRoles.Mode.SHRKillRequests.RemainingCooldown(player.Player), resetKill: true);
         }
         NameText.UpdateAllNameInfo();
     }

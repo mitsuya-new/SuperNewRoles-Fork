@@ -635,7 +635,7 @@ public class GuesserAbility : CustomMeetingButtonBase, IAbilityCount
         if (killer == null || dyingTarget == null)
             return;
         if (dyingTarget == null) return;
-        Mode.ShrGuesserCommands.SendVanillaShot(killer, dyingTarget);
+        Mode.SHRGuesserCommands.SendVanillaShot(killer, dyingTarget);
         dyingTarget.Player.Exiled();
 
         if (isMisFire || isSuicide)
