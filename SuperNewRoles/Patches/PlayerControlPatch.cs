@@ -33,6 +33,8 @@ class CheckShapeshiftPatch
             __instance.RpcRejectShapeshift();
             return false;
         }
+        if (SuperNewRoles.Mode.ShrAbilityTriggerPatches.HandleShapeshift(__instance, target))
+            return false;
         __instance.RpcShapeshift(target, shouldAnimate);
         return false;
     }
