@@ -85,7 +85,7 @@ public static class NameText
             return player.Data.Role.TeamColor;
         return player?.roleBase?.RoleColor ?? GetFallbackRoleInfoColor(player);
     }
-    private static string GetRoleInfoText(ExPlayerControl player)
+    internal static string GetRoleInfoText(ExPlayerControl player)
     {
         if (ShouldShowVanillaRole(player))
             return ModHelpers.Cs(player.Data.Role.TeamColor, GetVanillaRoleDisplayName(player.Data.Role.Role, player.Data.Role.NiceName));
@@ -122,11 +122,9 @@ public static class NameText
             }
         }
     }
-    public static void UpdateNameInfo(ExPlayerControl player)
+    internal static string GetTaskProgressText(ExPlayerControl player)
     {
-        if (player == null || player.Player == null)
-            return;
-        Initialize(player);
+        if (player == null) return string.Empty;
         string TaskText = "";
         try
         {
@@ -146,6 +144,15 @@ public static class NameText
             }
         }
         catch { }
+        return TaskText;
+    }
+
+    public static void UpdateNameInfo(ExPlayerControl player)
+    {
+        if (player == null || player.Player == null)
+            return;
+        Initialize(player);
+        string TaskText = GetTaskProgressText(player);
         string playerInfoText = "";
         string meetingInfoText = "";
         string roleName = GetRoleInfoText(player);
