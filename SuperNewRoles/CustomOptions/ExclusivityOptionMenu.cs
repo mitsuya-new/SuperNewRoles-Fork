@@ -228,6 +228,8 @@ public static class ExclusivityOptionMenu
         // 陣営に応じたロールのリストを取得
         var roles = RoleOptionManager.RoleOptions.Where(x =>
         {
+            if (!SuperNewRoles.Mode.SHRRoleTypes.ShouldShowInSettings(x.RoleId,
+                SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))) return false;
             var roleInfo = CustomRoleManager.AllRoles.FirstOrDefault(r => r.Role == x.RoleId);
             if (roleInfo == null || roleInfo.HiddenOption) return false;
             return roleType switch

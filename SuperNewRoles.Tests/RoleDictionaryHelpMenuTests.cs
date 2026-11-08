@@ -14,6 +14,27 @@ namespace SuperNewRoles.Tests;
 
 public class RoleDictionaryHelpMenuTests
 {
+    [Theory]
+    [InlineData(RoleId.Penguin, true, true)]
+    [InlineData(RoleId.Penguin, false, true)]
+    [InlineData(RoleId.SuicideWisher, true, true)]
+    [InlineData(RoleId.EvilHacker, true, false)]
+    [InlineData(RoleId.EvilHacker, false, true)]
+    [InlineData(RoleId.Crab, true, false)]
+    [InlineData(RoleId.Crab, false, true)]
+    public void SHRFilteringAppliesToSettingsWhileTheDictionaryKeepsAllRoles(RoleId roleId, bool shrMode, bool expected)
+    {
+        var role = new TestRole
+        {
+            Role = roleId,
+            AssignedTeam = AssignedTeamType.Impostor,
+            OptionTeam = RoleOptionMenuType.Impostor,
+        };
+        SuperNewRoles.Mode.SHRRoleTypes.ShouldShowInSettings(roleId, shrMode).Should().Be(expected);
+        RoleDictionaryHelpMenu.ShouldShowRoleForTeam(role, RoleOptionMenuType.Impostor).Should().BeTrue();
+        RoleDictionaryHelpMenu.ShouldShowRoleForTeam(role, RoleOptionMenuType.Crewmate).Should().BeFalse();
+    }
+
     [Fact]
     public void ShouldShowRoleForTeam_ShowsHiddenRoleInWinnerTeam()
     {

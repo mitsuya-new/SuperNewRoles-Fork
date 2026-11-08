@@ -206,6 +206,7 @@ public static class RoleOptionMenu
     /// </summary>
     private static GameSettingMenu cachedGameSettingMenu;
     private static int? cachedReleaseStateToken;
+    private static bool? cachedSHRMode;
 
     /// <summary>
     /// GameSettingMenuを取得またはキャッシュから返す
@@ -269,14 +270,17 @@ public static class RoleOptionMenu
     private static void RefreshRoleScrollIfReleaseStateChanged()
     {
         int releaseStateToken = RoleReleaseLock.GetReleaseStateToken();
+        bool shrMode = SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles);
         if (cachedReleaseStateToken == null)
         {
             cachedReleaseStateToken = releaseStateToken;
+            cachedSHRMode = shrMode;
             return;
         }
-        if (cachedReleaseStateToken == releaseStateToken) return;
+        if (cachedReleaseStateToken == releaseStateToken && cachedSHRMode == shrMode) return;
 
         cachedReleaseStateToken = releaseStateToken;
+        cachedSHRMode = shrMode;
         if (RoleOptionMenuObjectData == null) return;
 
         foreach (var entry in RoleOptionMenuObjectData.RoleScrollDictionary.Values)
@@ -425,7 +429,9 @@ public static class RoleOptionMenu
             .Where(ro =>
             {
                 var roleInfo = CustomRoleManager.AllRoles.FirstOrDefault(r => r.Role == ro.RoleId);
-                return roleInfo != null && roleInfo.OptionTeam == type && !roleInfo.HiddenOption;
+                return roleInfo != null && roleInfo.OptionTeam == type && !roleInfo.HiddenOption
+                    && SuperNewRoles.Mode.SHRRoleTypes.ShouldShowInSettings(ro.RoleId,
+                        SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles));
             })
             .ToArray();
 

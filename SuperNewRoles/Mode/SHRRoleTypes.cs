@@ -6,6 +6,15 @@ namespace SuperNewRoles.Mode;
 
 public static class SHRRoleTypes
 {
+    public static bool HasImplementedSupport(RoleId role) => role is
+        RoleId.Crewmate or RoleId.Impostor or RoleId.Sheriff or RoleId.Jackal or RoleId.Tasker
+        or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SerialKiller
+        or RoleId.SideKiller or RoleId.MadKiller or RoleId.EvilGuesser or RoleId.EvilGambler
+        or RoleId.Penguin or RoleId.NekoKabocha or RoleId.SuicideWisher;
+
+    internal static bool ShouldShowInSettings(RoleId role, bool shrMode)
+        => !shrMode || HasImplementedSupport(role);
+
     public static bool IsSupported(RoleId role) => role is not (
         RoleId.Crab or RoleId.DimensionWalker or RoleId.EvilHawk or RoleId.EvilMechanic
         or RoleId.Kunoichi or RoleId.Matryoshka or RoleId.Mushroomer or RoleId.Necromancer
@@ -36,4 +45,7 @@ public static class SHRRoleTypes
 
     internal static RoleTypes GetMadKillerRole(bool canUseVent)
         => canUseVent ? RoleTypes.Engineer : RoleTypes.Crewmate;
+
+    internal static RoleTypes GetTaskerRole(bool canKill, bool impostorSelected)
+        => canKill && impostorSelected ? RoleTypes.Impostor : RoleTypes.Crewmate;
 }
