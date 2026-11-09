@@ -20,6 +20,10 @@ public class SHRSamuraiTests
     [InlineData(RoleId.MadKiller, false, VentilationSystem.Operation.Move, true)]
     [InlineData(RoleId.MadKiller, false, VentilationSystem.Operation.Exit, false)]
     [InlineData(RoleId.MadKiller, true, VentilationSystem.Operation.Enter, false)]
+    [InlineData(RoleId.DarkKiller, false, VentilationSystem.Operation.Enter, true)]
+    [InlineData(RoleId.DoubleKiller, false, VentilationSystem.Operation.Enter, true)]
+    [InlineData(RoleId.DoubleKiller, true, VentilationSystem.Operation.Enter, false)]
+    [InlineData(RoleId.VampireDependent, false, VentilationSystem.Operation.Enter, true)]
     [InlineData(RoleId.Crewmate, false, VentilationSystem.Operation.StartCleaning, false)]
     public void VentRestrictionBlocksOnlyDisabledSamuraiEntryAndMovement(
         RoleId role, bool canVent, VentilationSystem.Operation operation, bool expected)
@@ -29,6 +33,8 @@ public class SHRSamuraiTests
     [InlineData(RoleId.Samurai, false, true)]
     [InlineData(RoleId.Samurai, true, false)]
     [InlineData(RoleId.Impostor, false, false)]
+    [InlineData(RoleId.DoubleKiller, false, true)]
+    [InlineData(RoleId.DoubleKiller, true, false)]
     [InlineData(RoleId.Crewmate, false, false)]
     public void SabotageRestrictionFollowsSamuraiSettingOnly(RoleId role, bool canSabotage, bool expected)
         => Assert.Equal(expected, SHRSamuraiRestrictions.RejectSabotage(role, canSabotage));

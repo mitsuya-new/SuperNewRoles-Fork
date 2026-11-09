@@ -8,6 +8,14 @@ namespace SuperNewRoles.Tests;
 public class SHRRoleTypesTests
 {
     [Theory]
+    [InlineData(false, false, RoleTypes.Crewmate)]
+    [InlineData(false, true, RoleTypes.Crewmate)]
+    [InlineData(true, false, RoleTypes.Tracker)]
+    [InlineData(true, true, RoleTypes.Impostor)]
+    public void TaskerRequiresTheKillOptionToUseTheImpostorSelection(bool canKill, bool selected, RoleTypes expected)
+        => Assert.Equal(expected, SHRRoleTypes.GetTaskerRole(canKill, selected));
+
+    [Theory]
     [InlineData(true, RoleTypes.Engineer)]
     [InlineData(false, RoleTypes.Crewmate)]
     public void MadKillerUsesEngineerOnlyWhenVentingIsEnabled(bool canVent, RoleTypes expected)
@@ -52,7 +60,7 @@ public class SHRRoleTypesTests
     [InlineData(RoleId.EvilNekomata, RoleTypes.Impostor)]
     [InlineData(RoleId.EvilSeer, RoleTypes.Impostor)]
     [InlineData(RoleId.Finder, RoleTypes.Impostor)]
-    [InlineData(RoleId.Mafia, RoleTypes.Impostor)]
+    [InlineData(RoleId.Mafia, RoleTypes.Crewmate)]
     [InlineData(RoleId.NekoKabocha, RoleTypes.Impostor)]
     [InlineData(RoleId.OverKiller, RoleTypes.Impostor)]
     [InlineData(RoleId.Pursuer, RoleTypes.Impostor)]
@@ -61,7 +69,6 @@ public class SHRRoleTypesTests
     [InlineData(RoleId.Impostor, RoleTypes.Impostor)]
     [InlineData(RoleId.Sheriff, RoleTypes.Impostor)]
     [InlineData(RoleId.MadKiller, RoleTypes.Crewmate)]
-    [InlineData(RoleId.Tasker, RoleTypes.Crewmate)]
     public void RoleTableAppliesOnlyToTheUnmoddedOwnersView(RoleId role, RoleTypes expected)
     {
         Assert.True(SHRRoleTypes.IsSupported(role));
@@ -84,6 +91,7 @@ public class SHRRoleTypesTests
     [InlineData(RoleId.RocketLauncher)]
     [InlineData(RoleId.Slugger)]
     [InlineData(RoleId.TriggerHappy)]
+    [InlineData(RoleId.Tasker)]
     public void UnsupportedRolesAreExcludedFromSHR(RoleId role)
         => Assert.False(SHRRoleTypes.IsSupported(role));
 }

@@ -185,6 +185,10 @@ public class EndGameCondition
 [HarmonyPatch(typeof(EndGameManager), nameof(EndGameManager.SetEverythingUp))]
 public class EndGameManagerSetUpPatch
 {
+    internal static GameOverReason NetworkEndReason(GameOverReason reason, bool shrMode)
+        => !shrMode || (int)reason < (int)CustomGameOverReason.None ? reason
+            : reason == (GameOverReason)CustomGameOverReason.Haison ? GameOverReason.ImpostorDisconnect
+            : GameOverReason.ImpostorsByKill;
     public static GameObject fadeObject;
     [CustomRPC]
     public static void RpcEndGameWithCondition(GameOverReason reason, List<byte> winners, string UpperText, List<string> additionalWinTexts, Color UpperTextColor, bool IsHaison, string winText = "WinText")
@@ -214,7 +218,8 @@ public class EndGameManagerSetUpPatch
         }).WrapToIl2Cpp());
 
         if (AmongUsClient.Instance.AmHost)
-            new LateTask(() => GameManager.Instance.RpcEndGame(newCond.reason, false), 0.3f, "EndGameSceneRpcEndGame");
+            new LateTask(() => GameManager.Instance.RpcEndGame(NetworkEndReason(newCond.reason,
+                SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)), false), 0.3f, "EndGameSceneRpcEndGame");
     }
 
     // Imageのアルファ値を変更するコルーチン
@@ -630,6 +635,9 @@ public static class OnGameEndPatch
     {
         // エンドゲームの結果からゲームオーバー理由を一時データに保存します。
         AdditionalTempData.gameOverReason = endGameResult.GameOverReason;
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && EndGameManagerSetUpPatch.fadeObject != null && EndGameManagerSetUpPatch.endGameCondition != null)
+            AdditionalTempData.gameOverReason = EndGameManagerSetUpPatch.endGameCondition.reason;
         if (AdditionalTempData.gameOverReason == (GameOverReason)CustomGameOverReason.Haison)
             endGameResult.GameOverReason = GameOverReason.ImpostorDisconnect;
         // ゲームオーバー理由の整数値が10以上の場合、理由をImpostorsByKillに上書きします。

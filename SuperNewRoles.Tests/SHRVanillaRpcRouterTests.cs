@@ -14,6 +14,8 @@ public class SHRVanillaRpcRouterTests
     [InlineData(CustomDeathType.Exile, "Exile")]
     [InlineData(CustomDeathType.Suicide, "Suicide")]
     [InlineData(CustomDeathType.Revange, "Revenge")]
+    [InlineData(CustomDeathType.VampireWithDead, "VampireLinkedDeath")]
+    [InlineData(CustomDeathType.VampireWithDeadNonDeadbody, "VampireLinkedExile")]
     [InlineData(CustomDeathType.KillWithoutKillAnimation, "None")]
     [InlineData(CustomDeathType.BuskerFakeDeath, "None")]
     public void StandardDeathOverloadsAreRoutedWithoutFlatteningSpecialRoleBehavior(
@@ -30,6 +32,8 @@ public class SHRVanillaRpcRouterTests
     [Fact]
     public void TasksAndStandardPlayerOperationsHaveNativeRoutes()
     {
+        Assert.Equal(SHRVanillaRpcRouter.Operation.Shapeshift,
+            SHRVanillaRpcRouter.Classify(typeof(SuperNewRoles.Events.PCEvents.TryShapeshiftPatch).GetMethod("RpcCustomShapeshift")!, []));
         Assert.Equal(SHRVanillaRpcRouter.Operation.SetTasks,
             SHRVanillaRpcRouter.Classify(typeof(CustomTaskAbility).GetMethod("RpcUncheckedSetTasks")!, []));
         AssertRoute("RpcExiledCustom", SHRVanillaRpcRouter.Operation.Exile);

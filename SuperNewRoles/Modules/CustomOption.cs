@@ -368,6 +368,13 @@ public static class CustomOptionManager
 
 public class CustomOption
 {
+    private bool IsUnavailableInSHR => SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+        && ((FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Impostor.Tasker)
+            && FieldInfo.Name == nameof(SuperNewRoles.Roles.Impostor.Tasker.TaskerIsKillCoolTaskNow))
+            || (FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Impostor.Vampire)
+            && (FieldInfo.Name == nameof(SuperNewRoles.Roles.Impostor.Vampire.VampireNoDeathOnVitals)
+                || FieldInfo.Name == nameof(SuperNewRoles.Roles.Impostor.Vampire.VampireBloodstainDurationTurn)
+                || FieldInfo.Name == nameof(SuperNewRoles.Roles.Impostor.Vampire.VampireBlackBloodstains))));
     public CustomOptionBaseAttribute Attribute { get; }
     public FieldInfo FieldInfo { get; }
     public string Name { get; }
@@ -568,6 +575,7 @@ public class CustomOption
 
     public bool ShouldDisplay()
     {        // 親オプションがある場合、親オプションの値をチェック
+        if (IsUnavailableInSHR) return false;
         if (ParentOption != null)
         {
             // ParentActiveValueが設定されている場合、親の値がそれと一致するかチェック

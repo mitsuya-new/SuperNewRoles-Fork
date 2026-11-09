@@ -23,7 +23,7 @@ public class SHRTestRoleBindingsTests
     [InlineData(RoleId.SideKiller, SHRAbilityTrigger.Phantom)]
     [InlineData(RoleId.Penguin, SHRAbilityTrigger.Phantom)]
     [InlineData(RoleId.SuicideWisher, SHRAbilityTrigger.Phantom)]
-    [InlineData(RoleId.Tasker, SHRAbilityTrigger.Pet)]
+    [InlineData(RoleId.Tasker, (SHRAbilityTrigger)0)]
     [InlineData(RoleId.Sheriff, (SHRAbilityTrigger)0)]
     [InlineData(RoleId.Crewmate, (SHRAbilityTrigger)0)]
     [InlineData(RoleId.Impostor, (SHRAbilityTrigger)0)]

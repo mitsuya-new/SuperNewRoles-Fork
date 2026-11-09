@@ -218,6 +218,7 @@ public static class SHRRoleAssignment
     {
         public static bool Prefix(PlayerControl __instance, RoleTypes roleType, bool canOverrideRole)
         {
+            if (SHRAntiBlackout.RouteRoleUpdate(__instance, roleType, canOverrideRole)) return false;
             if (!Capturing || !ModeManager.IsMode(ModeId.SuperHostRoles) || !AmongUsClient.Instance.AmHost) return true;
             VanillaRoles[__instance.PlayerId] = roleType;
             __instance.StartCoroutine(__instance.CoSetRole(roleType, canOverrideRole));

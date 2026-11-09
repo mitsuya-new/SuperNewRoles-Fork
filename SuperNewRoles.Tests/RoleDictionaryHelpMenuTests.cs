@@ -22,6 +22,8 @@ public class RoleDictionaryHelpMenuTests
     [InlineData(RoleId.EvilHacker, false, true)]
     [InlineData(RoleId.Crab, true, false)]
     [InlineData(RoleId.Crab, false, true)]
+    [InlineData(RoleId.Tasker, true, false)]
+    [InlineData(RoleId.Tasker, false, true)]
     public void SHRFilteringAppliesToSettingsWhileTheDictionaryKeepsAllRoles(RoleId roleId, bool shrMode, bool expected)
     {
         var role = new TestRole

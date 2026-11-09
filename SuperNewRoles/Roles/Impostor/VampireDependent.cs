@@ -91,14 +91,31 @@ public class VampireDependentAbility : AbilityBase
         Player.AttachAbility(hideInAdminAbility, new AbilityParentAbility(this));
         Player.AttachAbility(reverseVisionAbility, new AbilityParentAbility(this));
         Player.AttachAbility(new KnowOtherAbility((player) => player.Player == vampire?.Player, () => true), new AbilityParentAbility(this));
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance.AmHost)
+            SubscribeWithAbility(FixedUpdateEvent.Instance, () =>
+            {
+                if (Player.IsAlive() && vampire?.Player is { } owner && (owner.IsDead() || owner.Data.Disconnected))
+                    Player.RpcCustomDeath(MeetingHud.Instance != null || ExileController.Instance != null
+                        ? CustomDeathType.VampireWithDeadNonDeadbody : CustomDeathType.VampireWithDead);
+            });
     }
 
     public override void AttachToLocalPlayer()
     {
         base.AttachToLocalPlayer();
+        if (!SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) || AmongUsClient.Instance.AmHost)
+        {
+            SubscribeWithAbility(MurderEvent.Instance, OnMurder);
+            SubscribeWithAbility(ExileEvent.Instance, OnExile);
+        }
+        SubscribeWithAbility(NameTextUpdateEvent.Instance, OnNameTextUpdate);
+    }
+
+    public override void AttachToOthers()
+    {
+        if (!SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) || AmongUsClient.Instance?.AmHost != true) return;
         SubscribeWithAbility(MurderEvent.Instance, OnMurder);
         SubscribeWithAbility(ExileEvent.Instance, OnExile);
-        SubscribeWithAbility(NameTextUpdateEvent.Instance, OnNameTextUpdate);
     }
 
     private void OnNameTextUpdate(NameTextUpdateEventData data)
@@ -113,13 +130,13 @@ public class VampireDependentAbility : AbilityBase
     private void OnMurder(MurderEventData data)
     {
         if (data.target == vampire?.Player && Player.IsAlive() && data.resultFlags.HasFlag(MurderResultFlags.Succeeded))
-            ExPlayerControl.LocalPlayer.RpcCustomDeath(CustomDeathType.VampireWithDead);
+            Player.RpcCustomDeath(CustomDeathType.VampireWithDead);
     }
 
     private void OnExile(ExileEventData data)
     {
         if (data.exiled == vampire?.Player && Player.IsAlive())
-            ExPlayerControl.LocalPlayer.RpcCustomDeath(CustomDeathType.VampireWithDeadNonDeadbody);
+            Player.RpcCustomDeath(CustomDeathType.VampireWithDeadNonDeadbody);
     }
 
     public void SetVampire(VampireAbility vampire)

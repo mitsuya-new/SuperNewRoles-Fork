@@ -53,6 +53,7 @@ public class JammerAbility : TargetCustomButtonBase, IButtonEffect
     private bool _canUseAgainstImpostors;
     private int _usedCount;
     private ExPlayerControl _invisibleTarget;
+    private float shrInvisibleUntil;
     private readonly OpacityFadeController _opacityFader = new();
 
     public bool isEffectActive { get; set; }
@@ -75,6 +76,14 @@ public class JammerAbility : TargetCustomButtonBase, IButtonEffect
     public override float DefaultTimer => _coolTime;
     public override bool OnlyCrewmates => !_canUseAgainstImpostors;
     public override bool TargetPlayersInVents => false;
+    internal int SHRUsesRemaining => Math.Max(0, _abilityCount - _usedCount);
+    internal bool TryUseSHR(ExPlayerControl target)
+    {
+        if (target == null || SHRUsesRemaining == 0) return false;
+        Target = target;
+        OnClick();
+        return true;
+    }
 
     public JammerAbility(float coolTime, float durationTime, int abilityCount, bool canUseAgainstImpostors)
     {
@@ -149,6 +158,14 @@ public class JammerAbility : TargetCustomButtonBase, IButtonEffect
 
     private void OnFixedUpdate()
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance.AmHost
+            && _invisibleTarget != null && (Player.IsDead() || Player.Data.Disconnected || _invisibleTarget.IsDead()
+                || _invisibleTarget.Data.Disconnected || Time.unscaledTime >= shrInvisibleUntil || MeetingHud.Instance != null))
+        {
+            RpcSetInvisible(_invisibleTarget, false);
+            isEffectActive = false;
+            return;
+        }
         if (_invisibleTarget != null && !_invisibleTarget.IsDead())
         {
             _opacityFader.Apply(_invisibleTarget, CanSeeTranslucentState(_invisibleTarget, out var opacity) ? opacity : 0f, forceSnap: true);
@@ -158,7 +175,18 @@ public class JammerAbility : TargetCustomButtonBase, IButtonEffect
     [CustomRPC]
     public void RpcSetInvisible(ExPlayerControl target, bool isInvisible)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            if (isInvisible)
+            {
+                _invisibleTarget = target;
+                shrInvisibleUntil = Time.unscaledTime + _durationTime;
+            }
+            else if (_invisibleTarget == target) _invisibleTarget = null;
+        }
         SetInvisible(target, isInvisible);
+        if (AmongUsClient.Instance?.AmHost == true && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+            SuperNewRoles.Mode.SHRPrivatePlayerEffects.HideInVent(target, isInvisible);
     }
 
     private void SetInvisible(ExPlayerControl target, bool isInvisible)

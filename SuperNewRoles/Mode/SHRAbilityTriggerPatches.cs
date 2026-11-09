@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using AmongUs.GameOptions;
-using AmongUs.InnerNet.GameDataMessages;
 using HarmonyLib;
 using Hazel;
 using InnerNet;
@@ -23,7 +22,7 @@ public static class SHRAbilityTriggerPatches
     }
 
     internal static bool CanActivate(PlayerControl player)
-        => IsHostMode && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started
+        => IsHostMode && !SHRAntiBlackout.Active && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started
             && !AmongUsClient.Instance.IsGameOver && MeetingHud.Instance == null && ExileController.Instance == null
             && HudManager.Instance != null && !HudManager.Instance.IsIntroDisplayed
             && player != null && player.Data != null && !player.Data.IsDead && !player.Data.Disconnected
@@ -70,9 +69,9 @@ public static class SHRAbilityTriggerPatches
         Logger.Debug($"Pet received player={player.PlayerId} handler={ability != null} allowed={CanActivate(player)}", "SHR.Controls");
         if (ability == null || !CanActivate(player)) return;
         if (!ability.TryConsumeInput(Time.unscaledTime)) return;
-        Activate(player, ability, SHRAbilityTrigger.Pet);
         player.MyPhysics.RpcCancelPet();
         player.MyPhysics.CancelPet();
+        Activate(player, ability, SHRAbilityTrigger.Pet);
     }
 
     internal static SHRAbilityTrigger GetShapeshiftTrigger(bool isSelf)
@@ -86,6 +85,7 @@ public static class SHRAbilityTriggerPatches
             player.RpcRejectShapeshift();
             return true;
         }
+        if (((ExPlayerControl)player).GetAbility<SHRBatchRoleAbility>() is { } batch && batch.HandleShape(target)) return true;
         var source = GetShapeshiftTrigger(player.PlayerId == target.PlayerId);
         var ability = Find(player, source);
         if (ability == null) return false;
@@ -125,7 +125,8 @@ public static class SHRAbilityTriggerPatches
         {
             ExPlayerControl exPlayer = player;
             float remaining = exPlayer.GetAbility<PenguinAbility>() is { IsHolding: true } penguin
-                ? penguin.SHRAbilityCooldown : ability.RemainingCooldown(Time.unscaledTime);
+                ? penguin.SHRAbilityCooldown : exPlayer.GetAbility<SHRBatchRoleAbility>()?.RemainingCooldown
+                    ?? ability.RemainingCooldown(Time.unscaledTime);
             ResetPhantomButton(player, remaining);
         }
         return false;
@@ -141,28 +142,10 @@ public static class SHRAbilityTriggerPatches
         int clientId = AmongUsClient.Instance.GetClientIdFromCharacter(player);
         if (clientId < 0) return;
         ExPlayerControl exPlayer = player;
-        bool completed = exPlayer.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true;
-        var packet = MessageWriter.Get(SendOption.Reliable);
-        try
-        {
-            packet.StartMessage(Tags.GameDataTo);
-            packet.Write(AmongUsClient.Instance.GameId);
-            packet.WritePacked(clientId);
-            SendRole(RoleTypes.Impostor);
-            if (!completed) SendRole(RoleTypes.Phantom);
-            packet.EndMessage();
-            AmongUsClient.Instance.SendOrDisconnect(packet);
-        }
-        finally { packet.Recycle(); }
+        bool completed = exPlayer.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true
+            || exPlayer.GetAbility<SHRBatchRoleAbility>()?.Exhausted == true;
         SHRPlayerOptions.Send(player, abilityCooldown: remaining,
-            killCooldown: SHRKillRequests.RemainingCooldown(player), resetAbility: !completed, resetKill: true);
-        void SendRole(RoleTypes role)
-        {
-            packet.StartMessage((byte)GameDataTypes.RpcFlag);
-            packet.WritePacked(player.NetId);
-            packet.Write((byte)RpcCalls.SetRole);
-            new RpcSetRoleMessage(player.NetId, role, true).SerializeRpcValues(packet);
-            packet.EndMessage();
-        }
+            killCooldown: SHRKillRequests.RemainingCooldown(player), resetAbility: !completed, resetKill: true,
+            controlRole: completed ? RoleTypes.Impostor : RoleTypes.Phantom);
     }
 }

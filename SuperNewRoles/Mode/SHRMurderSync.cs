@@ -32,10 +32,19 @@ public static class SHRMurderSync
         if (SHRWaveCannonController.BlocksAttack(SHRWaveCannonController.IsProtected(target), source == target, CustomDeathType.Kill)) return;
         var flags = ResultFlags(!suicide && target.Player.protectedByGuardianThisRound);
         PlayerControl actor = explosion ? target.Player : source.Player;
-        var writer = client.StartRpcImmediately(actor.NetId, (byte)RpcCalls.MurderPlayer, SendOption.Reliable, -1);
-        writer.WriteNetObject(target.Player);
-        writer.Write((int)flags);
-        client.FinishRpcImmediately(writer);
+        if (flags.HasFlag(MurderResultFlags.Succeeded) && SHRPrivatePlayerEffects.IsHidden(target))
+            SHRPrivatePlayerEffects.HideInVent(target, false);
+        if (flags.HasFlag(MurderResultFlags.Succeeded) && SHRPrivatePlayerEffects.IsHidden(source))
+        {
+            foreach (var viewer in PlayerControl.AllPlayerControls)
+            {
+                if (viewer == null || viewer.AmOwner || viewer.Data == null || viewer.Data.Disconnected) continue;
+                int id = client.GetClientIdFromCharacter(viewer);
+                if (id < 0) continue;
+                Send(SHRPrivatePlayerEffects.IsHiddenFrom(source, viewer) ? target.Player : actor, id);
+            }
+        }
+        else Send(actor, -1);
         actor.MurderPlayer(target.Player, flags);
         Logger.Debug($"Result source={source.PlayerId} target={target.PlayerId} flags={flags} explosion={explosion}", "SHR.Murder");
         if (!flags.HasFlag(MurderResultFlags.Succeeded)) return;
@@ -44,5 +53,13 @@ public static class SHRMurderSync
         if (!suicide) MurderDataManager.AddMurderData(source, target);
         if (explosion && !suicide)
             target.GetAbility<Roles.Impostor.NekoKabochaRevenge>()?.OnSHRSpecialMurder(source, flags);
+
+        void Send(PlayerControl visibleActor, int viewerId)
+        {
+            var writer = client.StartRpcImmediately(visibleActor.NetId, (byte)RpcCalls.MurderPlayer, SendOption.Reliable, viewerId);
+            writer.WriteNetObject(target.Player);
+            writer.Write((int)flags);
+            client.FinishRpcImmediately(writer);
+        }
     }
 }

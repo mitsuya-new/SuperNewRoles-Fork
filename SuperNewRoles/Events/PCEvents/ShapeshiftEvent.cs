@@ -33,6 +33,7 @@ public static class TryShapeshiftPatch
 {
     public static bool Prefix(PlayerControl __instance, PlayerControl target, bool shouldAnimate)
     {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return true;
         RpcCustomShapeshift(__instance, target, shouldAnimate);
         return false;
     }

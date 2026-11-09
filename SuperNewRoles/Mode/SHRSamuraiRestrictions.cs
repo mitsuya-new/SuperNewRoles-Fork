@@ -10,18 +10,17 @@ namespace SuperNewRoles.Mode;
 public static class SHRSamuraiRestrictions
 {
     internal static bool RejectVent(RoleId role, bool canUseVent, VentilationSystem.Operation operation)
-        => role is RoleId.Samurai or RoleId.MadKiller && !canUseVent
+        => role is RoleId.Samurai or RoleId.MadKiller or RoleId.DarkKiller or RoleId.DoubleKiller or RoleId.VampireDependent && !canUseVent
             && operation is VentilationSystem.Operation.Enter or VentilationSystem.Operation.Move;
 
     internal static bool RejectSabotage(RoleId role, bool canSabotage)
-        => role == RoleId.Samurai && !canSabotage;
+        => role is RoleId.Samurai or RoleId.DoubleKiller && !canSabotage;
 
     private static bool IsHostSHR => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
         && ModeManager.IsMode(ModeId.SuperHostRoles);
 
     private static bool CanUseVent(ExPlayerControl player)
-        => player.Role == RoleId.MadKiller
-            ? player.GetAbility<MadKillerAbility>()?.CanUseVent == true : Samurai.SamuraiCanUseVent;
+        => player.CanUseVent();
 
     [HarmonyPatch(typeof(VentilationSystem), nameof(VentilationSystem.UpdateSystem))]
     public static class VentilationPatch
@@ -74,7 +73,8 @@ public static class SHRSamuraiRestrictions
         public static bool Prefix(PlayerControl player)
         {
             if (!IsHostSHR || player?.Data == null) return true;
-            bool reject = RejectSabotage(((ExPlayerControl)player).Role, Samurai.SamuraiCanSabotage);
+            ExPlayerControl ex = player;
+            bool reject = RejectSabotage(ex.Role, ex.CanSabotage());
             if (reject) Logger.Debug($"Sabotage rejected player={player.PlayerId}", "SHR.Samurai");
             return !reject;
         }

@@ -54,6 +54,7 @@ public static class SHRKillRequests
         ExPlayerControl victim = target;
         var ability = killer.GetAbility<CustomKillButtonAbility>();
         bool permitted = ability != null ? ability.CanKill() : __instance.Data.Role?.IsImpostor == true;
+        if (killer.Role == SuperNewRoles.Roles.RoleId.DoubleKiller) permitted = true;
         if (killer.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true) permitted = false;
         if (killer.GetAbility<PenguinAbility>() is { } penguin && !penguin.CanUseNormalKill) permitted = false;
         if (killer.Role == SuperNewRoles.Roles.RoleId.Tasker
@@ -83,8 +84,9 @@ public static class SHRKillRequests
             return false;
         }
         ReadyAt[__instance.PlayerId] = Time.unscaledTime + Mathf.Max(0.35f, SHRPlayerOptions.KillCooldown(killer));
-        bool acted = ability?.TryKillTarget(victim) ?? false;
-        if (ability == null) SHRMurderSync.Murder(killer, victim);
+        bool doubleMain = killer.Role == SuperNewRoles.Roles.RoleId.DoubleKiller;
+        bool acted = !doubleMain && (ability?.TryKillTarget(victim) ?? false);
+        if (ability == null || doubleMain) SHRMurderSync.Murder(killer, victim);
         Logger.Debug($"Kill request player={__instance.PlayerId} target={target.PlayerId} custom={ability != null} acted={acted}", "SHR.Controls");
         return false;
     }

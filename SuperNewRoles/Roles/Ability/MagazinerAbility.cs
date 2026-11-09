@@ -33,6 +33,25 @@ public class MagazinerAbility : CustomButtonBase, IAbilityCount
         Data = data;
     }
 
+    internal static bool CanChangeSHRAmmo(bool consume, int count, float remaining, bool limited, int maximum)
+        => float.IsFinite(remaining) && count >= 0 && (consume ? count > 0 && remaining > 0f
+            : remaining <= 0f && (!limited || count < maximum));
+
+    internal bool TryChangeSHRAmmo(bool consume, float remaining)
+    {
+        if (AmongUsClient.Instance?.AmHost != true || !Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            || !CanChangeSHRAmmo(consume, Count, remaining, Data.ammoLimitEnabled, Data.maxAmmo)) return false;
+        RpcSetSHRAmmo(Count + (consume ? -1 : 1));
+        Logger.Debug($"Ammo player={Player.PlayerId} consume={consume} count={Count} killRemaining={remaining}", "SHR.Controls");
+        return true;
+    }
+
+    [CustomRPC]
+    public void RpcSetSHRAmmo(int count)
+    {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) Count = Math.Max(0, count);
+    }
+
     public override bool CheckIsAvailable()
     {
         if (isConsumeMode)

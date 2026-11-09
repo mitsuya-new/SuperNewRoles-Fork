@@ -5,6 +5,7 @@ using InnerNet;
 using SuperNewRoles.Modules;
 using SuperNewRoles.Roles;
 using SuperNewRoles.Roles.Ability;
+using AmongUs.GameOptions;
 
 namespace SuperNewRoles.Mode;
 
@@ -78,7 +79,7 @@ public static class SHRMeetingChat
         meeting = null;
         Ready = false;
         generation++;
-        if (!restore) return;
+        if (!restore || SHRAntiBlackout.Active) return;
         foreach (var viewer in PlayerControl.AllPlayerControls)
         {
             if (!SHRPlayerOptions.IsVanillaGuest(viewer)) continue;
@@ -87,28 +88,40 @@ public static class SHRMeetingChat
         }
     }
 
-    private static void WriteState(MessageWriter writer, PlayerControl viewer, PlayerControl subject, bool hide)
+    internal static RoleTypes GetCurrentViewRole(PlayerControl viewer, PlayerControl subject)
+    {
+        ExPlayerControl ex = subject;
+        var originalRole = subject.Data.Role;
+        var role = SHRRoleAssignment.GetViewRole(ex.Role, originalRole.Role,
+            viewer.PlayerId == subject.PlayerId, SHRPlayerOptions.IsVanillaGuest(subject),
+            ((ExPlayerControl)viewer).Role, true, originalRole.IsImpostor);
+        if (viewer.PlayerId == subject.PlayerId)
+        {
+            if (ex.Role == RoleId.Mafia)
+                role = SuperNewRoles.Roles.Impostor.Mafia.IsKillFlag() ? RoleTypes.Impostor : RoleTypes.Crewmate;
+            if (ex.GetAbility<SHRBatchRoleAbility>()?.Exhausted == true)
+                role = RoleTypes.Impostor;
+            if (ex.Role is RoleId.Jackal or RoleId.Samurai or RoleId.SideKiller && ex.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true)
+                role = RoleTypes.Impostor;
+            if (ex.Role == RoleId.Tasker && ex.GetAbility<SHRTestRoleAbility>()?.TaskerImpostor == true)
+                role = SHRRoleTypes.GetTaskerRole(SuperNewRoles.Roles.Impostor.Tasker.TaskerCanKill, true);
+            if (ex.Role == RoleId.MadKiller && ex.GetAbility<MadKillerAbility>()?.IsAwakened == true)
+                role = RoleTypes.Impostor;
+        }
+        return subject.Data.IsDead ? originalRole.IsImpostor ? RoleTypes.ImpostorGhost : RoleTypes.CrewmateGhost : role;
+    }
+
+    private static void WriteState(MessageWriter writer, PlayerControl viewer, PlayerControl subject, bool hide,
+        RoleTypes? overrideRole = null, bool? overrideDead = null)
     {
         var data = subject.Data;
         bool dead = data.IsDead;
         var originalRole = data.Role;
         try
         {
+            var role = overrideRole ?? GetCurrentViewRole(viewer, subject);
             if (hide && HideSpeaker(viewer.Data.IsDead, dead, viewer.PlayerId == subject.PlayerId)) data.IsDead = true;
-            ExPlayerControl ex = subject;
-            var role = SHRRoleAssignment.GetViewRole(ex.Role, originalRole.Role,
-                viewer.PlayerId == subject.PlayerId, SHRPlayerOptions.IsVanillaGuest(subject),
-                ((ExPlayerControl)viewer).Role, true, originalRole.IsImpostor);
-            if (viewer.PlayerId == subject.PlayerId)
-            {
-                if (ex.Role is RoleId.Jackal or RoleId.Samurai or RoleId.SideKiller && ex.GetAbility<SHRTestRoleAbility>()?.PhantomAbilityCompleted == true)
-                    role = AmongUs.GameOptions.RoleTypes.Impostor;
-                if (ex.Role == RoleId.Tasker && ex.GetAbility<SHRTestRoleAbility>()?.TaskerImpostor == true)
-                    role = AmongUs.GameOptions.RoleTypes.Impostor;
-                if (ex.Role == RoleId.MadKiller && ex.GetAbility<MadKillerAbility>()?.IsAwakened == true)
-                    role = AmongUs.GameOptions.RoleTypes.Impostor;
-            }
-            if (dead) role = originalRole.Role;
+            if (overrideDead.HasValue) data.IsDead = overrideDead.Value;
             data.Role = RoleManager.Instance.GetRole(role);
             writer.StartMessage(1);
             writer.WritePacked(data.NetId);
@@ -124,7 +137,8 @@ public static class SHRMeetingChat
         }
     }
 
-    private static void SendState(PlayerControl viewer, PlayerControl subject, bool hide)
+    internal static void SendState(PlayerControl viewer, PlayerControl subject, bool hide,
+        RoleTypes? overrideRole = null, bool? overrideDead = null)
     {
         if (subject?.Data?.Role == null || viewer?.Data == null) return;
         int id = AmongUsClient.Instance.GetClientIdFromCharacter(viewer);
@@ -133,7 +147,7 @@ public static class SHRMeetingChat
         try
         {
             Start(writer, id);
-            WriteState(writer, viewer, subject, hide);
+            WriteState(writer, viewer, subject, hide, overrideRole, overrideDead);
             writer.EndMessage();
             AmongUsClient.Instance.SendOrDisconnect(writer);
         }
@@ -145,6 +159,26 @@ public static class SHRMeetingChat
         writer.StartMessage(Tags.GameDataTo);
         writer.Write(AmongUsClient.Instance.GameId);
         writer.WritePacked(id);
+    }
+
+    internal static void SendDisconnectedState(PlayerControl viewer, NetworkedPlayerInfo data)
+    {
+        int id = AmongUsClient.Instance.GetClientIdFromCharacter(viewer);
+        if (id < 0 || data == null || !data.Disconnected) return;
+        var writer = MessageWriter.Get(SendOption.Reliable);
+        try
+        {
+            Start(writer, id);
+            writer.StartMessage(1);
+            writer.WritePacked(data.NetId);
+            privateSerialization++;
+            try { data.Serialize(writer, false); }
+            finally { privateSerialization--; }
+            writer.EndMessage();
+            writer.EndMessage();
+            AmongUsClient.Instance.SendOrDisconnect(writer);
+        }
+        finally { writer.Recycle(); }
     }
 
     private static void Relay(PlayerControl speaker, string text)
@@ -241,7 +275,7 @@ public static class SHRMeetingChat
     {
         public static bool Prefix(bool initialState, ref bool __result)
         {
-            if (!Active || initialState || privateSerialization != 0) return true;
+            if (!IsHostSHR || (!Active && !SHRAntiBlackout.Active) || initialState || privateSerialization != 0) return true;
             __result = false;
             return false;
         }

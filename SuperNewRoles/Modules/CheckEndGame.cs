@@ -92,9 +92,11 @@ public static class CheckGameEndPatch
 
     public static bool Prefix()
     {
-        if (ModeManager.IsMode(ModeId.SuperHostRoles))
-            return CouldCheckEndGame && !(CustomOptionManager.DebugMode && CustomOptionManager.DebugModeNoGameEnd);
         if (!CouldCheckEndGame) return false;
+        if (ModeManager.IsMode(ModeId.SuperHostRoles)
+            && (AmongUsClient.Instance?.AmHost != true || SHRRoleAssignment.Capturing
+                || SHRAntiBlackout.Active
+                || HudManager.Instance == null || HudManager.Instance.IsIntroDisplayed)) return false;
         try
         {
             return HandleGameEndCheck(false);
@@ -102,6 +104,7 @@ public static class CheckGameEndPatch
         catch (Exception ex)
         {
             Logger.Error($"ゲーム終了チェック中にエラーが発生: {ex}");
+            if (ModeManager.IsMode(ModeId.SuperHostRoles)) return false;
             return true; // エラー時はバニラの処理に任せる
         }
     }
@@ -176,6 +179,7 @@ public static class CheckGameEndPatch
             player != null &&
             player.Role == RoleId.Tasker &&
             player.IsAlive() &&
+            ModHelpers.TaskCompletedData(player.Data).total > 0 &&
             player.IsTaskComplete());
     }
     private static VictoryType? DeterminePlayerBasedVictory(GameState state, bool isHnS)
@@ -308,6 +312,7 @@ public sealed class GameState : IDisposable
 
     public bool IsAllTasksCompleted() =>
         GameData.Instance != null &&
+        GameData.Instance.TotalTasks > 0 &&
         GameData.Instance.TotalTasks <= GameData.Instance.CompletedTasks;
 
     private bool IsSabotageActiveOfType(SabotageSystemType type)
@@ -481,10 +486,11 @@ public class PlayerStatistics
 
     private bool IsKillerWin(int teamAlive, int nonKillerAlive = 0)
     {
-        return isHnS ? teamAlive >= TotalAlive : (teamAlive >= TotalAlive - teamAlive)
-            && TotalKiller <= (teamAlive - nonKillerAlive)
-            && teamAlive != 0
+        return isHnS ? teamAlive >= TotalAlive : HasKillerMajority(teamAlive, TotalAlive, TotalKiller, nonKillerAlive)
             && !(PavlovsDogAlive <= 0 && TeamPavlovsAlive > 0)
             && !PavlovsOwnerRemaining;
     }
+
+    internal static bool HasKillerMajority(int teamAlive, int totalAlive, int totalKiller, int nonKillerAlive = 0)
+        => teamAlive > 0 && teamAlive >= totalAlive - teamAlive && totalKiller <= teamAlive - nonKillerAlive;
 }

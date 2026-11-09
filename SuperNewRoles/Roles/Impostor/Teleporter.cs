@@ -83,6 +83,16 @@ internal class TeleporterAbility : CustomButtonBase, IButtonEffect
         RpcAllTeleportTo(targetPosition, targetPlayer);
     }
 
+    internal bool TryTeleportSHR()
+    {
+        var targets = ExPlayerControl.ExPlayerControls.Where(IsValidTeleportTarget).ToArray();
+        if (targets.Length == 0) return false;
+        var target = targets[UnityEngine.Random.Range(0, targets.Length)];
+        if (!TryGetPlayerPosition(target, out var position)) return false;
+        RpcAllTeleportTo(position, target);
+        return true;
+    }
+
     private static bool IsValidTeleportTarget(ExPlayerControl player)
     {
         try
@@ -93,7 +103,8 @@ internal class TeleporterAbility : CustomButtonBase, IButtonEffect
                 return false;
             if (!player.IsAlive() || !player.moveable)
                 return false;
-            if (playerControl.inVent || playerControl.inMovingPlat || playerControl.onLadder)
+            if (player.Data.Disconnected || playerControl.inVent || playerControl.walkingToVent
+                || playerControl.inMovingPlat || playerControl.onLadder)
                 return false;
 
             return playerPhysics.enabled;
@@ -130,9 +141,11 @@ internal class TeleporterAbility : CustomButtonBase, IButtonEffect
         {
             return player != null
                 && player.IsAlive()
+                && !player.Data.Disconnected
                 && player.Player != null
                 && player.NetTransform != null
-                && player.transform != null;
+                && player.transform != null
+                && IsValidTeleportTarget(player);
         }
         catch (Exception ex)
         {
@@ -171,18 +184,36 @@ internal class TeleporterAbility : CustomButtonBase, IButtonEffect
     [CustomRPC]
     public void RpcAllTeleportTo(Vector2 position, ExPlayerControl target)
     {
-        foreach (var player in ExPlayerControl.ExPlayerControls)
+        bool shr = SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles);
+        foreach (var player in ExPlayerControl.ExPlayerControls.ToArray())
         {
-            TeleportPlayer(player, position);
+            if (!shr) TeleportPlayer(player, position);
+            else if (AmongUsClient.Instance.AmHost && IsTeleportRecipient(player))
+            {
+                try { SuperNewRoles.Mode.SHRVanillaRpcRouter.Teleport(player, position); }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"Teleport failed for player={player.PlayerId}: {ex}", "SHR.Teleporter");
+                    Logger.Debug($"Teleport failed for player={player.PlayerId}: {ex}", "SHR.Teleporter");
+                }
+            }
         }
-        if (IsTeleportRecipient(ExPlayerControl.LocalPlayer))
+        if (!shr && IsTeleportRecipient(ExPlayerControl.LocalPlayer))
             ExPlayerControl.LocalPlayer.RpcCustomSnapTo(position);
-        if (CurrentMessage != null)
+        try
         {
-            GameObject.Destroy(CurrentMessage.text.gameObject);
+            if (CurrentMessage?.text != null) GameObject.Destroy(CurrentMessage.text.gameObject);
             CurrentMessage = null;
+            string targetName = target?.Data?.PlayerName ?? "Unknown";
+            if (HudManager.Instance != null)
+                CurrentMessage = new CustomMessage(ModTranslation.GetString("TeleporterTeleportText", targetName), 1, true);
         }
-        string targetName = target?.Data?.PlayerName ?? "Unknown";
-        CurrentMessage = new CustomMessage(ModTranslation.GetString("TeleporterTeleportText", targetName), 1, true);
+        catch (Exception ex)
+        {
+            CurrentMessage = null;
+            Logger.Warning($"Teleport result display failed: {ex}", "SHR.Teleporter");
+            Logger.Debug($"Teleport result display failed: {ex}", "SHR.Teleporter");
+        }
     }
+
 }

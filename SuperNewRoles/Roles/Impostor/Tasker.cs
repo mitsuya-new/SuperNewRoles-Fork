@@ -111,6 +111,7 @@ public static class TaskerPlayerControlFixedUpdatePatch
 
     private static bool ShouldHoldKillTimer(PlayerControl player)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return false;
         if (player == null || player != PlayerControl.LocalPlayer) return false;
         if (Tasker.TaskerIsKillCoolTaskNow) return false;
 

@@ -12,7 +12,7 @@ namespace SuperNewRoles.Mode;
 
 public static class SHRVanillaRpcRouter
 {
-    internal enum Operation { None, Kill, Suicide, Exile, SetTasks, Report, SnapTo, Shapeshift, MurderResult, Revenge }
+    internal enum Operation { None, Kill, Suicide, Exile, SetTasks, Report, SnapTo, Shapeshift, MurderResult, Revenge, VampireLinkedDeath, VampireLinkedExile }
 
     internal static Operation Classify(MethodBase method, object[] args)
     {
@@ -24,10 +24,14 @@ public static class SHRVanillaRpcRouter
                 CustomDeathType.Suicide => Operation.Suicide,
                 CustomDeathType.Exile => Operation.Exile,
                 CustomDeathType.Revange => Operation.Revenge,
+                CustomDeathType.VampireWithDead => Operation.VampireLinkedDeath,
+                CustomDeathType.VampireWithDeadNonDeadbody => Operation.VampireLinkedExile,
                 _ => Operation.None,
             };
         if (method.DeclaringType == typeof(CustomTaskAbility) && method.Name == nameof(CustomTaskAbility.RpcUncheckedSetTasks))
             return Operation.SetTasks;
+        if (method.DeclaringType == typeof(TryShapeshiftPatch) && method.Name == nameof(TryShapeshiftPatch.RpcCustomShapeshift))
+            return Operation.Shapeshift;
         if (method.DeclaringType != typeof(PlayerControlRpcExtensions)) return Operation.None;
         return method.Name switch
         {
@@ -45,6 +49,21 @@ public static class SHRVanillaRpcRouter
             && ModeManager.IsMode(ModeId.SuperHostRoles) && !player.AmOwner
             && (!Patches.SyncVersion.VersionData.VersionMap.TryGetValue(player.PlayerId, out string version)
                 || string.IsNullOrEmpty(version));
+
+    internal static bool Teleport(ExPlayerControl player, Vector2 position)
+    {
+        var client = AmongUsClient.Instance;
+        if (client == null || !client.AmHost || !ModeManager.IsMode(ModeId.SuperHostRoles)
+            || player?.Data == null || player.Data.Disconnected || !player.IsAlive() || player.NetTransform == null) return false;
+        var net = player.NetTransform;
+        if (((Vector2)player.transform.position - position).sqrMagnitude < 0.0001f) return true;
+        net.SnapTo(position, unchecked((ushort)(net.lastSequenceId + 128)));
+        var writer = client.StartRpcImmediately(net.NetId, (byte)RpcCalls.SnapTo, SendOption.None);
+        NetHelpers.WriteVector2(position, writer);
+        writer.Write(unchecked((ushort)(net.lastSequenceId + 2)));
+        client.FinishRpcImmediately(writer);
+        return true;
+    }
 
     internal static bool TryRoute(MethodBase method, object[] args, bool received)
     {
@@ -75,6 +94,14 @@ public static class SHRVanillaRpcRouter
                 var revengeTarget = (ExPlayerControl)args[args.Length == 3 ? 1 : 0];
                 if (Exile(revengeTarget)) FinalStatusManager.SetFinalStatus(revengeTarget, FinalStatus.Revange);
                 break;
+            case Operation.VampireLinkedDeath:
+                var dependent = (ExPlayerControl)args[args.Length == 3 ? 1 : 0];
+                SHRMurderSync.Murder(dependent, dependent, finalStatus: FinalStatus.VampireWithDead);
+                break;
+            case Operation.VampireLinkedExile:
+                var exiledDependent = (ExPlayerControl)args[args.Length == 3 ? 1 : 0];
+                if (Exile(exiledDependent)) FinalStatusManager.SetFinalStatus(exiledDependent, FinalStatus.VampireWithDead);
+                break;
             case Operation.SetTasks:
                 var player = (PlayerControl)args[0];
                 if (player?.Data != null)
@@ -102,9 +129,13 @@ public static class SHRVanillaRpcRouter
     {
         if (player?.Data == null || player.Data.Disconnected || player.Data.IsDead) return false;
         if (ExileEvent.Invoke(player).RefCanceled) return false;
+        if (player.Data.IsDead) return false;
         var client = AmongUsClient.Instance;
-        var writer = client.StartRpcImmediately(player.Player.NetId, (byte)RpcCalls.Exiled, SendOption.Reliable, -1);
-        client.FinishRpcImmediately(writer);
+        if (!SHRAntiBlackout.DeferExile(player.Player))
+        {
+            var writer = client.StartRpcImmediately(player.Player.NetId, (byte)RpcCalls.Exiled, SendOption.Reliable, -1);
+            client.FinishRpcImmediately(writer);
+        }
         player.Player.Exiled();
         FinalStatusManager.SetFinalStatus(player, FinalStatus.Exiled);
         return true;

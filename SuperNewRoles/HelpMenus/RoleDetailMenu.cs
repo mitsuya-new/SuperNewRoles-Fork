@@ -2,6 +2,7 @@ using System.Linq;
 using SuperNewRoles.CustomOptions;
 using SuperNewRoles.Modules;
 using SuperNewRoles.Roles;
+using SuperNewRoles.Mode;
 using TMPro;
 using UnityEngine;
 
@@ -66,11 +67,46 @@ public static class RoleDetailMenu
 
         // テキスト設定処理を共通化
         SetTextComponent(roleInformation, "RoleName", role.RoleColor, role.RoleName);
-        SetTextComponent(roleInformation, "RoleTeam", Color.white, role.AssignedTeams.Count == 0 ? "HelpMenu.AllTeams" : string.Join(", ", role.AssignedTeams.Select(t => ModHelpers.CsWithTranslation(GetTeamColor(t), t.ToString()))));
+        string teamText = role.AssignedTeams.Count == 0 ? ModTranslation.GetString("HelpMenu.AllTeams")
+            : string.Join(", ", role.AssignedTeams.Select(t => ModHelpers.CsWithTranslation(GetTeamColor(t), t.ToString())));
+        SetTextComponent(roleInformation, "RoleTeam", Color.white, teamText);
         SetTextComponent(roleInformation, "RoleDescription", Color.white, $"{role.RoleName}.Description");
+        UpdateSHRSupportLabel(roleInformation, role is IRoleBase roleBase && SHRRoleTypes.HasImplementedSupport(roleBase.Role));
         SetTextComponent(roleInformation, "RoleSettingsTitle", Color.white, "HelpMenu.MyRoleInformation.RoleSettingsTitle");
         string roleSettings = GenerateRoleSettingsText(role);
         SetTextComponent(roleInformation, "RoleSettings", Color.white, roleSettings);
+    }
+
+    private static void UpdateSHRSupportLabel(Transform parent, bool supported)
+    {
+        var label = parent.Find("SHRSupportLabel")?.GetComponent<TextMeshPro>();
+        if (!supported)
+        {
+            if (label != null) label.gameObject.SetActive(false);
+            return;
+        }
+        var team = parent.Find("RoleTeam")?.GetComponent<TextMeshPro>();
+        var description = parent.Find("RoleDescription")?.GetComponent<TextMeshPro>();
+        if (team == null || description == null) return;
+        team.ForceMeshUpdate();
+        description.ForceMeshUpdate();
+        if (label == null)
+        {
+            label = Object.Instantiate(team, parent);
+            label.gameObject.name = "SHRSupportLabel";
+        }
+        label.gameObject.SetActive(true);
+        label.enableAutoSizing = false;
+        label.fontSize = team.fontSize * 0.6f;
+        label.enableWordWrapping = false;
+        label.alignment = TextAlignmentOptions.TopLeft;
+        label.text = "【SHR対応役職】";
+        label.ForceMeshUpdate();
+        float teamBottom = team.transform.localPosition.y + team.textBounds.min.y * team.transform.localScale.y;
+        float descriptionTop = description.transform.localPosition.y + description.textBounds.max.y * description.transform.localScale.y;
+        var position = team.transform.localPosition;
+        position.y = (teamBottom + descriptionTop) * 0.5f - label.textBounds.center.y * label.transform.localScale.y;
+        label.transform.localPosition = position;
     }
 
     /// <summary>

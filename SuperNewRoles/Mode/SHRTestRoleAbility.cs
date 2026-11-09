@@ -29,6 +29,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         || (Player.Role == RoleId.Samurai && Player.GetAbility<AreaKillButtonAbility>()?.IsUsed == true);
     internal bool TaskerImpostor { get; private set; }
     private bool grantedPet;
+    private int lastTrackerSecond = -1;
     private const string TestPet = "pet_test";
     private static bool IsHostSHR => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
         && ModeManager.IsMode(ModeId.SuperHostRoles);
@@ -42,7 +43,6 @@ public sealed class SHRTestRoleAbility : AbilityBase
         RoleId.SideKiller => SHRAbilityTrigger.Phantom,
         RoleId.Penguin => SHRAbilityTrigger.Phantom,
         RoleId.SuicideWisher => SHRAbilityTrigger.Phantom,
-        RoleId.Tasker => SHRAbilityTrigger.Pet,
         _ => 0,
     };
 
@@ -58,6 +58,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
 
     public static void AttachIfSupported(ExPlayerControl player)
     {
+        SHRBatchRoleAbility.AttachIfSupported(player);
         if (!IsHostSHR || !NeedsVanillaControls(player) || TriggerFor(player.Role) == 0) return;
         if (player.Role == RoleId.Tasker && !Tasker.TaskerCanKill) return;
         Logger.Debug($"Binding player={player.PlayerId} role={player.Role} trigger={TriggerFor(player.Role)}", "SHR.Controls");
@@ -81,6 +82,16 @@ public sealed class SHRTestRoleAbility : AbilityBase
             CanUse, cooldown);
         Player.AttachAbility(trigger, new AbilityParentAbility(this));
         SubscribeWithAbility(WrapUpEvent.Instance, _ => ResetInitialCooldown(cooldown));
+        if (Player.Role == RoleId.Tasker)
+            SubscribeWithAbility(FixedUpdateEvent.Instance, () =>
+            {
+                if (!configured || !Player.IsAlive() || TaskerImpostor || !Tasker.TaskerCanKill
+                    || MeetingHud.Instance != null || ExileController.Instance != null) return;
+                int second = Mathf.CeilToInt(SHRKillRequests.RemainingCooldown(Player.Player));
+                if (second == lastTrackerSecond) return;
+                lastTrackerSecond = second;
+                SHRPlayerOptions.Send(Player.Player);
+            });
         if (Player.Role == RoleId.SideKiller)
             SubscribeWithAbility(MurderEvent.Instance, data =>
             {
@@ -116,6 +127,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         bool needsTarget = Player.Role is RoleId.Jackal or RoleId.SideKiller;
         var target = needsTarget && ready ? FindSidekickTarget() : null;
         bool available = ready && (!needsTarget || (!PhantomAbilityCompleted && target != null));
+        if (Player.Role == RoleId.Tasker) available &= Tasker.TaskerCanKill;
         if (Player.Role == RoleId.Samurai)
             available &= Player.GetAbility<AreaKillButtonAbility>() is { IsUsed: false } area && area.CanKill();
         if (Player.Role == RoleId.WaveCannon)
@@ -167,9 +179,11 @@ public sealed class SHRTestRoleAbility : AbilityBase
                 break;
             case RoleId.Tasker:
                 if (!Tasker.TaskerCanKill) break;
+                float taskerKillCooldown = SHRKillRequests.RemainingCooldown(Player.Player);
                 TaskerImpostor = !TaskerImpostor;
-                SetSelfRole(Player.Player, TaskerImpostor ? RoleTypes.Impostor : RoleTypes.Crewmate);
-                SHRPlayerOptions.Send(Player.Player, killCooldown: SHRKillRequests.RemainingCooldown(Player.Player), resetKill: true);
+                SetSelfRole(Player.Player, SHRRoleTypes.GetTaskerRole(Tasker.TaskerCanKill, TaskerImpostor));
+                SHRPlayerOptions.Send(Player.Player, killCooldown: taskerKillCooldown, resetKill: true, resetAbility: !TaskerImpostor);
+                Logger.Debug($"Tasker pet switch player={Player.PlayerId} impostor={TaskerImpostor} killCooldown={taskerKillCooldown}", "SHR.Controls");
                 break;
             case RoleId.SelfBomber:
                 Explode();
@@ -216,7 +230,9 @@ public sealed class SHRTestRoleAbility : AbilityBase
                 ResetInitialCooldown(Samurai.SamuraiKillCooldown);
                 break;
             case RoleId.Tasker:
-                SetSelfRole(Player.Player, RoleTypes.Crewmate);
+                SetSelfRole(Player.Player, SHRRoleTypes.GetTaskerRole(Tasker.TaskerCanKill, false));
+                SHRPlayerOptions.Send(Player.Player, killCooldown: SHRKillRequests.RemainingCooldown(Player.Player),
+                    resetKill: true, resetAbility: true);
                 string pet = Player.Data.DefaultOutfit.PetId;
                 if (string.IsNullOrEmpty(pet) || pet.ToLowerInvariant() is "pet_emptypet" or "pet_enmptypet" or "pet_empty" or "pet_none" or "none")
                 {
@@ -260,9 +276,10 @@ public sealed class SHRTestRoleAbility : AbilityBase
         SendRoleView(subject, subject, role);
     }
 
-    internal static void SendRoleView(PlayerControl subject, PlayerControl viewer, RoleTypes role)
+    internal static void SendRoleView(PlayerControl subject, PlayerControl viewer, RoleTypes role, bool allowDuringTransition = false)
     {
         if (viewer.AmOwner) return;
+        if (SHRAntiBlackout.Active && !allowDuringTransition && SHRPlayerOptions.IsVanillaGuest(viewer)) return;
         int id = AmongUsClient.Instance.GetClientIdFromCharacter(viewer);
         if (id < 0)
         {

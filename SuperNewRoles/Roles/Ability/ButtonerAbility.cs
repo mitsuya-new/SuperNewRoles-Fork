@@ -47,6 +47,15 @@ public class ButtonerAbility : CustomButtonBase, IAbilityCount
     [CustomRPC]
     public static void ButtonerStartMeeting(ButtonerAbility ability)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            if (AmongUsClient.Instance.AmHost)
+            {
+                ability.Player.Player.RemainingEmergencies++;
+                ability.Player.Player.ReportDeadBody(null);
+            }
+            return;
+        }
         // AmongUsクライアントのRPC処理
         ability.Player.Player.ReportDeadBody(null);
         ability.Player.Player.RemainingEmergencies++;

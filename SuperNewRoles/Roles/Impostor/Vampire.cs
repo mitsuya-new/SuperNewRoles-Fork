@@ -10,6 +10,7 @@ using SuperNewRoles.Events;
 using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.CustomObject;
 using HarmonyLib;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Impostor;
 class Vampire : RoleBase<Vampire>
@@ -97,6 +98,8 @@ public class VampireAbility : AbilityBase
 {
     private VampireDependentAbility dependent;
     private CustomSidekickButtonAbility sidekickButtonAbility;
+    internal CustomSidekickButtonAbility SidekickAbility => sidekickButtonAbility;
+    private bool IsSHR => ModeManager.IsMode(ModeId.SuperHostRoles);
     private CustomKillButtonAbility killButtonAbility;
     private bool created = false;
     public VampireNightFallData nightFall { get; }
@@ -105,6 +108,7 @@ public class VampireAbility : AbilityBase
     public VampireData Vampire { get; }
 
     private float delayTimer;
+    internal float SHRDelayRemaining => isKillDelayed ? Math.Max(0f, delayTimer) : 0f;
     private float bloodStainTimer;
     private bool isKillDelayed = false;
     private Vector3 killPosition;
@@ -127,7 +131,7 @@ public class VampireAbility : AbilityBase
             canCreateSidekick: (_) => nightFall.canCreate && !created,
             sidekickCooldown: () => nightFall.cooldown,
             sidekickRole: () => RoleId.VampireDependent,
-            sidekickRoleVanilla: () => RoleTypes.Crewmate,
+            sidekickRoleVanilla: () => IsSHR ? RoleTypes.Impostor : RoleTypes.Crewmate,
             sidekickSprite: AssetManager.GetAsset<Sprite>("VampireCreateDependentsButton.png"),
             sidekickText: ModTranslation.GetString("VampireDependentsButtonText"),
             sidekickCount: () => 1,
@@ -138,7 +142,7 @@ public class VampireAbility : AbilityBase
             }
         ));
         killButtonAbility = new CustomKillButtonAbility(
-            canKill: () => true,
+            canKill: () => !IsSHR || !isKillDelayed,
             killCooldown: () => kill.killCooldown,
             onlyCrewmates: () => true,
             isTargetable: (player) => !player.IsImpostor() && dependent?.Player != player,
@@ -168,7 +172,8 @@ public class VampireAbility : AbilityBase
         SubscribeWithAbility(FixedUpdateEvent.Instance, OnFixedUpdate);
         SubscribeWithAbility(MurderEvent.Instance, OnMurder);
         SubscribeWithAbility(WrapUpEvent.Instance, OnWrapUp);
-        SubscribeWithAbility(CalledMeetingEvent.Instance, OnMeetingCalled);
+        if (IsSHR) SubscribeWithAbility(PreCalledMeetingEvent.Instance, OnMeetingCalled);
+        else SubscribeWithAbility(CalledMeetingEvent.Instance, OnMeetingCalled);
     }
     public override void AttachToLocalPlayer()
     {
@@ -223,6 +228,8 @@ public class VampireAbility : AbilityBase
 
     private void OnMurder(MurderEventData data)
     {
+        if (IsSHR && AmongUsClient.Instance.AmHost && data.killer == dependent?.Player && data.resultFlags.HasFlag(MurderResultFlags.Succeeded))
+            SHRKillRequests.SetRemainingCooldown(Player.Player, kill.killCooldown);
         if (Player.AmOwner && data.killer == dependent?.Player)
             ExPlayerControl.LocalPlayer.ResetKillCooldown();
     }
@@ -231,20 +238,28 @@ public class VampireAbility : AbilityBase
     public void RpcSetDependent(ExPlayerControl player)
     {
         dependent = player.GetAbility<VampireDependentAbility>();
+        if (dependent == null) return;
         dependent.SetVampire(this);
         this.created = true;
+        if (IsSHR && AmongUsClient.Instance.AmHost)
+        {
+            SHRTestRoleAbility.SendRoleToAll(player.Player, RoleTypes.Impostor);
+            SHRTestRoleAbility.SetSelfRole(Player.Player, RoleTypes.Impostor);
+            SHRPlayerOptions.Send(player.Player, resetKill: true);
+        }
     }
 
     [CustomRPC]
     public void RpcSetTargetingPlayer(ExPlayerControl player)
     {
+        if (IsSHR && (player?.IsAlive() != true || isKillDelayed)) return;
         TargetingPlayer = player;
         delayTimer = kill.killDelay;
         isKillDelayed = true;
         killPosition = Player.transform.position;
 
         // プレイヤーごとの血痕親オブジェクトを作成
-        if (!bloodStainsParents.ContainsKey(player))
+        if (!IsSHR && !bloodStainsParents.ContainsKey(player))
         {
             var parent = new GameObject($"BloodStains_{player.PlayerId}").transform;
             parent.gameObject.SetActive(false);
@@ -252,6 +267,11 @@ public class VampireAbility : AbilityBase
         }
 
         bloodStainTimer = 0;
+        if (IsSHR && AmongUsClient.Instance.AmHost)
+        {
+            SHRKillRequests.SetRemainingCooldown(Player.Player, kill.killDelay + kill.killCooldown);
+            if (dependent?.Player?.IsAlive() == true) SHRKillRequests.SetRemainingCooldown(dependent.Player.Player, dependent.Data.killCooldown);
+        }
 
         // 眷属のキルクールをリセット（ヴァンパイアがキルボタンを押した瞬間）
         if (dependent?.Player?.AmOwner == true)
@@ -261,6 +281,20 @@ public class VampireAbility : AbilityBase
     private void ExecuteDelayedKill()
     {
         if (TargetingPlayer == null || TargetingPlayer.IsDead()) return;
+        if (IsSHR)
+        {
+            if (!AmongUsClient.Instance.AmHost) return;
+            if (!Player.IsAlive())
+            {
+                RpcClearSHRTarget();
+                return;
+            }
+            var target = TargetingPlayer;
+            RpcClearSHRTarget();
+            SHRMurderSync.Murder(Player, target, explosion: true, finalStatus: FinalStatus.VampireKill);
+            if (Player.IsAlive()) SHRKillRequests.SetRemainingCooldown(Player.Player, kill.killCooldown);
+            return;
+        }
 
         var targetParent = bloodStainsParents.GetValueOrDefault(TargetingPlayer);
         if (targetParent != null)
@@ -280,6 +314,20 @@ public class VampireAbility : AbilityBase
 
     private void OnFixedUpdate()
     {
+        if (IsSHR && (Player.Data == null || Player.Data.Disconnected || Player.IsDead() || AmongUsClient.Instance.IsGameOver))
+        {
+            if (isKillDelayed && AmongUsClient.Instance.AmHost) RpcClearSHRTarget();
+            return;
+        }
+        if (IsSHR && isKillDelayed && TargetingPlayer?.IsAlive() != true)
+        {
+            if (AmongUsClient.Instance.AmHost)
+            {
+                RpcClearSHRTarget();
+                SHRKillRequests.SetRemainingCooldown(Player.Player, kill.killCooldown);
+            }
+            return;
+        }
         if (TargetingPlayer == null || TargetingPlayer.IsDead()) return;
 
         // キル遅延中はタイマーを進めない
@@ -293,6 +341,7 @@ public class VampireAbility : AbilityBase
             return;
         }
 
+        if (IsSHR) return;
         bloodStainTimer -= Time.fixedDeltaTime;
         if (bloodStainTimer <= 0)
         {
@@ -305,8 +354,16 @@ public class VampireAbility : AbilityBase
         }
     }
 
+    [CustomRPC]
+    public void RpcClearSHRTarget()
+    {
+        TargetingPlayer = null;
+        isKillDelayed = false;
+    }
+
     private static bool CancelVitalsDead(ExPlayerControl player)
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles)) return false;
         if (player.Role is RoleId.Vampire or RoleId.VampireDependent)
         {
             var vampireAbility = player.GetAbility<VampireAbility>();

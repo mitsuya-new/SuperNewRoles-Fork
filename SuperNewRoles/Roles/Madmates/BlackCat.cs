@@ -53,6 +53,26 @@ class BlackCat : RoleBase<BlackCat>
 }
 public class RevengeExileAbility : AbilityBase
 {
+    private bool shrRevenged;
+    public override void AttachToAlls()
+    {
+        if (!SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) || AmongUsClient.Instance?.AmHost != true) return;
+        SubscribeWithAbility(ExileEvent.Instance, data =>
+        {
+            if (data.exiled?.PlayerId == Player.PlayerId) TrySHRRevenge();
+        });
+        SubscribeWithAbility(WrapUpEvent.Instance, data =>
+        {
+            if (data.exiled?.PlayerId == Player.PlayerId) TrySHRRevenge();
+        });
+    }
+
+    private void TrySHRRevenge()
+    {
+        if (shrRevenged) return;
+        shrRevenged = true;
+        RandomExile();
+    }
     private bool IsNotImpostor { get; }
     public RevengeExileAbility(bool isNotImpostor)
     {
@@ -61,6 +81,7 @@ public class RevengeExileAbility : AbilityBase
 
     public override void AttachToLocalPlayer()
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return;
         SubscribeWithAbility(ExileEvent.Instance, data =>
         {
             if (data.exiled?.PlayerId == PlayerControl.LocalPlayer.Data.PlayerId) RandomExile();
@@ -71,7 +92,7 @@ public class RevengeExileAbility : AbilityBase
     {
         // 生きているプレイヤーをリストアップ
         var alivePlayers = ExPlayerControl.ExPlayerControls
-            .Where(p => p != null && p.IsAlive() && (!IsNotImpostor || !p.IsImpostor()))
+            .Where(p => p != null && p != Player && p.IsAlive() && !p.Data.Disconnected && (!IsNotImpostor || !p.IsImpostor()))
             .ToList();
 
         // リストが空でない場合、ランダムなプレイヤーを選択

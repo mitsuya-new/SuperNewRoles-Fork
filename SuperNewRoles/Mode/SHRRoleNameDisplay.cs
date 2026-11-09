@@ -81,7 +81,8 @@ public static class SHRRoleNameDisplay
             bool hidden = exPlayer.TryGetAbility<HideMyRoleWhenAliveAbility>(out var hide) && hide.IsHide(exPlayer).role;
             string original = player.Data.PlayerName;
             string display = IsUnmodded(player) && !hidden
-                ? FormatName(NameText.GetRoleInfoText(exPlayer) + NameText.GetTaskProgressText(exPlayer), original, meetingPending || MeetingHud.Instance != null)
+                ? FormatName(NameText.GetRoleInfoText(exPlayer) + (exPlayer.GetAbility<SHRBatchRoleAbility>()?.Status ?? "")
+                    + NameText.GetTaskProgressText(exPlayer), original, meetingPending || MeetingHud.Instance != null)
                 : original;
             if (Sent.TryGetValue(player.PlayerId, out var previous)
                 && previous.Player == player && previous.Display == display) continue;

@@ -55,6 +55,11 @@ internal class MovingAbility : CustomButtonBase
     [CustomRPC]
     public void RpcTeleportToPosition(Vector3 position)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            SuperNewRoles.Mode.SHRVanillaRpcRouter.Teleport(Player, position);
+            return;
+        }
         Player.NetTransform.SnapTo(position);
         Player.RpcCustomSnapTo(position);
     }

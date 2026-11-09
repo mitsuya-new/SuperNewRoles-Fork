@@ -7,6 +7,7 @@ namespace SuperNewRoles.Roles.Ability;
 public class DoorrAbility : CustomButtonBase
 {
     private const float AutoDoorUsableDistance = 1.5f;
+    private const float SHRDoorDistanceMargin = 0.5f;
     private static ShipStatus cachedShipStatus;
     // CheckIsAvailable が毎フレーム呼ばれるので、使用距離だけはマップ単位でキャッシュする。
     private static float[] cachedUsableDistanceSqr = [];
@@ -52,6 +53,14 @@ public class DoorrAbility : CustomButtonBase
         SetDoorway(door, isOpen);
     }
 
+    internal bool TryUseSHR()
+    {
+        if (!TryGetDoorIndex(Player.Player, out int index, SHRDoorDistanceMargin)) return false;
+        RpcSetDoorway(index, !ShipStatus.Instance.AllDoors[index].IsOpen);
+        return true;
+    }
+    internal bool CanUseSHR => TryGetDoorIndex(Player.Player, out _, SHRDoorDistanceMargin);
+
     private static void SetDoorway(OpenableDoor door, bool isOpen)
     {
         var shipStatus = ShipStatus.Instance;
@@ -74,6 +83,10 @@ public class DoorrAbility : CustomButtonBase
         }
 
         door.SetDoorway(isOpen);
+        if (AmongUsClient.Instance?.AmHost == true && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && shipStatus.Systems.TryGetValue(SystemTypes.Doors, out var manualSystem)
+            && manualSystem.TryCast<DoorsSystemType>() is { } doors)
+            doors.IsDirty = true;
     }
 
     private static void SetRoomAutoDoors(AutoDoorsSystemType autoDoorsSystem, OpenableDoor[] allDoors, AutoOpenDoor targetDoor, bool isOpen)
@@ -94,8 +107,10 @@ public class DoorrAbility : CustomButtonBase
     }
 
     private static bool TryGetDoorIndex(out int nearestDoorIndex)
+        => TryGetDoorIndex(PlayerControl.LocalPlayer, out nearestDoorIndex);
+
+    private static bool TryGetDoorIndex(PlayerControl localPlayer, out int nearestDoorIndex, float distanceMargin = 0f)
     {
-        var localPlayer = PlayerControl.LocalPlayer;
         var shipStatus = ShipStatus.Instance;
         var allDoors = shipStatus?.AllDoors;
         if (!localPlayer || allDoors == null)
@@ -116,6 +131,11 @@ public class DoorrAbility : CustomButtonBase
             var door = allDoors[i];
             float usableDistanceSqr = cachedUsableDistanceSqr[i];
             if (door == null || usableDistanceSqr <= 0f) continue;
+            if (distanceMargin > 0f)
+            {
+                float distance = Mathf.Sqrt(usableDistanceSqr) + distanceMargin;
+                usableDistanceSqr = distance * distance;
+            }
 
             var doorPosition = (Vector2)door.transform.position;
             float distanceSqr = (playerPosition - doorPosition).sqrMagnitude;

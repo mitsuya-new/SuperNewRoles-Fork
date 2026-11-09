@@ -32,6 +32,7 @@ public static class WrapUpPatch
     public static void Postfix(ExileController __instance)
     {
         WrapUpEvent.Invoke(__instance.initData.networkedPlayer);
+        Mode.SHRAntiBlackout.Complete();
         CheckGameEndPatch.CouldCheckEndGame = false;
         new LateTask(() =>
         {
@@ -65,6 +66,7 @@ public static class AirshipWrapUpPatch
 
         Logger.Info("AirshipWrapUpPatch 開始");
         WrapUpEvent.Invoke(airshipExileController.initData.networkedPlayer);
+        Mode.SHRAntiBlackout.Complete();
         CheckGameEndPatch.CouldCheckEndGame = false;
         new LateTask(() =>
         {
