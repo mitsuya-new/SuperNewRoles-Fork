@@ -89,6 +89,10 @@ class BalancerAbility : AbilityBase, IAbilityCount
     public bool isOnePlayerDead = false;
     private bool isNoPlayerToExile = false;
     private bool isPlayerStatusHandled = false;
+    private float shrVoteDeadline;
+
+    internal bool AcceptVoteSHR(byte target) => Mode.SHRBalancerVotes.AcceptVote(CurrentState == BalancerState.WaitVote,
+        target, targetPlayerLeft.PlayerId, targetPlayerRight.PlayerId);
 
     public static BalancerAbility BalancingAbility { get; private set; }
     public static MeetingHud currentMeetingHud;
@@ -139,6 +143,19 @@ class BalancerAbility : AbilityBase, IAbilityCount
         Count = useCount;
     }
 
+    internal bool TryStartSHR(ExPlayerControl first, ExPlayerControl second)
+    {
+        if (AmongUsClient.Instance?.AmHost != true || !Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            || MeetingHud.Instance == null || MeetingHud.Instance.state == MeetingHud.MeetingStates.Discussion
+            || BalancingAbility != null || !HasCount || isAbilityUsed
+            || !Player.IsAlive() || Player.Data.Disconnected
+            || first == null || second == null || first == second || !first.IsAlive() || !second.IsAlive()
+            || first.Data.Disconnected || second.Data.Disconnected) return false;
+        this.UseAbilityCount();
+        RpcStartAbility(Player, first.Player, second.Player, AbilityId);
+        return true;
+    }
+
     #region State Management
     private void ClearAndReload()
     {
@@ -151,6 +168,7 @@ class BalancerAbility : AbilityBase, IAbilityCount
         isOnePlayerDead = false;
         isNoPlayerToExile = false;
         isPlayerStatusHandled = false;
+        shrVoteDeadline = 0f;
         BalancingAbility = null;
         currentMeetingHud = null;
 
@@ -346,6 +364,9 @@ class BalancerAbility : AbilityBase, IAbilityCount
 
     private bool IsVoteTimerExpired()
     {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+            return CurrentState == BalancerState.WaitVote && shrVoteDeadline > 0f
+                && Mode.SHRBalancerVotes.Remaining(Time.unscaledTime, shrVoteDeadline) <= 0f;
         return CurrentState == BalancerState.WaitVote &&
             MeetingHud.Instance != null &&
             MeetingHud.Instance.discussionTimer <= 0f;
@@ -462,12 +483,25 @@ class BalancerAbility : AbilityBase, IAbilityCount
 
     public void OnWrapUp(WrapUpEventData data)
     {
+        if (isDoubleExile && Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && data.exiled?.PlayerId == targetPlayerRight?.PlayerId) return;
+        if (BalancingAbility == this && isDoubleExile && Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && AmongUsClient.Instance?.AmHost == true)
+        {
+            foreach (var target in new[] { targetPlayerLeft, targetPlayerRight })
+            {
+                if (target?.Data == null || target.Data.Disconnected) continue;
+                if (!target.Data.IsDead) Mode.SHRVanillaRpcRouter.Exile(target);
+                Mode.SHRAntiBlackout.RegisterNativeExile(target);
+            }
+        }
         if (BalancingAbility == this &&
             BalancingAbility.isDoubleExile &&
             ExileController.Instance != additionalExileController &&
             additionalExileController != null)
         {
-            if (additionalExileController.initData?.networkedPlayer?.Object != null)
+            if (additionalExileController.initData?.networkedPlayer?.Object != null
+                && !Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
             {
                 ((ExPlayerControl)additionalExileController.initData.networkedPlayer.Object).CustomDeath(CustomDeathType.Exile);
             }
@@ -545,6 +579,8 @@ class BalancerAbility : AbilityBase, IAbilityCount
         // 会議時間を変更
         // 6.5秒は演出の分
         MeetingHud.Instance.discussionTimer = GameOptionsManager.Instance.CurrentGameOptions.GetInt(Int32OptionNames.VotingTime) - Balancer.BalancerVoteTime - 6.5f;
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+            MeetingHud.Instance.discussionTimer += GameOptionsManager.Instance.CurrentGameOptions.GetInt(Int32OptionNames.DiscussionTime);
 
         // 天秤会議の開始処理
         CurrentState = BalancerState.Animation_Chain;
@@ -565,6 +601,9 @@ class BalancerAbility : AbilityBase, IAbilityCount
 
         // 効果音再生
         PlayChainSound();
+        Mode.SHRBalancerVotes.ClearNativeVotes();
+        Mode.SHRBalancerVotes.SyncNativeTime(Balancer.BalancerVoteTime + 6.5f);
+        Mode.SHRBalancerVotes.Announce(player1, player2);
     }
 
     private void SetupPlayerAreas()
@@ -842,6 +881,12 @@ class BalancerAbility : AbilityBase, IAbilityCount
     private void TransitionToWaitVote()
     {
         CurrentState = BalancerState.WaitVote;
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            shrVoteDeadline = Time.unscaledTime + Balancer.BalancerVoteTime;
+            Mode.SHRBalancerVotes.SyncNativeTime(Balancer.BalancerVoteTime);
+            Mode.SHRBalancerVotes.Announce(targetPlayerLeft, targetPlayerRight, Balancer.BalancerVoteTime);
+        }
         SetActiveMeetingHud(true);
 
         // UI要素の配置
@@ -857,6 +902,8 @@ class BalancerAbility : AbilityBase, IAbilityCount
 
         // タイマー設定
         MeetingHud.Instance.discussionTimer = GameOptionsManager.Instance.CurrentGameOptions.GetInt(Int32OptionNames.VotingTime) - Balancer.BalancerVoteTime;
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+            MeetingHud.Instance.discussionTimer += GameOptionsManager.Instance.CurrentGameOptions.GetInt(Int32OptionNames.DiscussionTime);
         MeetingHud.Instance.TimerText.gameObject.SetActive(true);
         MeetingHud.Instance.TimerText.transform.localPosition = new(2.05f, -2, -1);
         MeetingHud.Instance.ProceedButton.transform.localPosition = new(3.5f, -2, -1.05f);
@@ -1036,6 +1083,8 @@ class BalancerMeetingButton : CustomMeetingButtonBase
     // ボタンがクリック可能かどうか
     public override bool CheckIsAvailable(ExPlayerControl player)
     {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && MeetingHud.Instance?.state == MeetingHud.MeetingStates.Discussion)
+            return false;
         // 既に能力を使用済みでなく、プレイヤーが生存していれば使用可能
         if (firstSelectedTarget != null)
         {

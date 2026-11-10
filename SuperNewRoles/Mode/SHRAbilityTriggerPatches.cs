@@ -21,13 +21,13 @@ public static class SHRAbilityTriggerPatches
         return exPlayer?.GetAbilities<SHRAbilityTriggerAbility>().FirstOrDefault(a => a.Triggers.HasFlag(source));
     }
 
-    internal static bool CanActivate(PlayerControl player)
+    internal static bool CanActivate(PlayerControl player, bool allowVentInput = false)
         => IsHostMode && !SHRAntiBlackout.Active && AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started
             && !AmongUsClient.Instance.IsGameOver && MeetingHud.Instance == null && ExileController.Instance == null
             && HudManager.Instance != null && !HudManager.Instance.IsIntroDisplayed
             && player != null && player.Data != null && !player.Data.IsDead && !player.Data.Disconnected
-            && !PenguinAbility.IsDragged(player)
-            && !player.inVent && !player.walkingToVent && !player.onLadder && !player.inMovingPlat
+            && !PenguinAbility.IsDragged(player) && !SHRNunPlatform.IsPassenger(player) && !SHRFlightSync.IsFlying(player)
+            && (allowVentInput || !player.inVent && !player.walkingToVent) && !player.onLadder && !player.inMovingPlat
             && !(ShipStatus.Instance?.TryCast<FungleShipStatus>()?.Zipline?.playerIdHands.ContainsKey(player.PlayerId) == true);
 
     private static bool Activate(PlayerControl player, SHRAbilityTriggerAbility ability, SHRAbilityTrigger source,
@@ -80,6 +80,11 @@ public static class SHRAbilityTriggerPatches
     public static bool HandleShapeshift(PlayerControl player, PlayerControl target)
     {
         if (!IsHostMode) return false;
+        if (SHRCamouflagerController.BlocksShape(player, target))
+        {
+            player.RpcRejectShapeshift();
+            return true;
+        }
         if (((ExPlayerControl)player).Role == Roles.RoleId.SerialKiller)
         {
             player.RpcRejectShapeshift();
@@ -95,7 +100,8 @@ public static class SHRAbilityTriggerPatches
             || !ability.TryConsumeInput(Time.unscaledTime)) return true;
         Activate(player, ability, source, target);
         if (CanActivate(player))
-            SHRPlayerOptions.Send(player, abilityCooldown: ability.RemainingCooldown(Time.unscaledTime), resetAbility: true);
+            SHRPlayerOptions.Send(player, abilityCooldown: ((ExPlayerControl)player).Role is Roles.RoleId.Conjurer or Roles.RoleId.Banshee or Roles.RoleId.EvilHacker
+                ? SHRPlayerOptions.AbilityCooldown(player) : ability.RemainingCooldown(Time.unscaledTime), resetAbility: true);
         return true;
     }
 
@@ -125,8 +131,12 @@ public static class SHRAbilityTriggerPatches
         {
             ExPlayerControl exPlayer = player;
             float remaining = exPlayer.GetAbility<PenguinAbility>() is { IsHolding: true } penguin
-                ? penguin.SHRAbilityCooldown : exPlayer.GetAbility<SHRBatchRoleAbility>()?.RemainingCooldown
-                    ?? ability.RemainingCooldown(Time.unscaledTime);
+                ? penguin.SHRAbilityCooldown : exPlayer.GetAbility<CamouflagerAbility>()?.SHRController?.RemainingCooldown
+                    ?? exPlayer.GetAbility<SHRBatchRoleAbility>()?.RemainingCooldown
+                    ?? exPlayer.GetAbility<SHRCrewActionAbility>()?.Remaining
+                    ?? exPlayer.GetAbility<SHRCrewBoostAbility>()?.Remaining
+                    ?? exPlayer.GetAbility<SHRRocketAbility>()?.Remaining
+                    ?? exPlayer.GetAbility<SHRPusherAbility>()?.Remaining ?? ability.RemainingCooldown(Time.unscaledTime);
             ResetPhantomButton(player, remaining);
         }
         return false;

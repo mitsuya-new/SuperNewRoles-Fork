@@ -81,6 +81,8 @@ public static class CustomTaskTypePatches
 
         static void Prefix(Console __instance)
         {
+            if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+                && ExPlayerControl.LocalPlayer.Role == Roles.RoleId.HamburgerShop) return;
             var customTaskTypeAbility = ExPlayerControl.LocalPlayer.GetAbility<CustomTaskTypeAbility>();
             if (customTaskTypeAbility == null) return;
 
@@ -107,6 +109,8 @@ public static class CustomTaskTypePatches
 
         static void Postfix(Console __instance)
         {
+            if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+                && ExPlayerControl.LocalPlayer.Role == Roles.RoleId.HamburgerShop) return;
             var customTaskTypeAbility = ExPlayerControl.LocalPlayer.GetAbility<CustomTaskTypeAbility>();
             if (customTaskTypeAbility == null) return;
 

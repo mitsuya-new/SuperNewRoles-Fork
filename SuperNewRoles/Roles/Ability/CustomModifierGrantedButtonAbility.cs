@@ -100,12 +100,15 @@ public class CustomModifierGrantedButtonAbility : TargetCustomButtonBase
         base.AttachToAlls();
     }
 
-    public override void OnClick()
-    {
-        if (Target == null) return;
-        if (!_options.CanGrantModifier(_granted)) return;
+    public override void OnClick() => TryGrantModifier(Target);
 
-        ExPlayerControl target = Target;
+    internal bool CanGrantFor(ExPlayerControl target) => target != null && target != Player && target.IsAlive()
+        && !target.Data.Disconnected && _options.CanGrantModifier(_granted)
+        && (_options.IsTargetable == null || _options.IsTargetable(target));
+
+    internal bool TryGrantModifier(ExPlayerControl target)
+    {
+        if (!CanGrantFor(target)) return false;
 
         if (_options.IsGrantingSuccessful == null || _options.IsGrantingSuccessful(target))
         {
@@ -117,6 +120,7 @@ public class CustomModifierGrantedButtonAbility : TargetCustomButtonBase
         ResetTimer();
 
         Count--;
+        return true;
     }
 
     public override bool CheckIsAvailable()

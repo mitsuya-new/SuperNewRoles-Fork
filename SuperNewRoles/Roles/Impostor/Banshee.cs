@@ -8,6 +8,7 @@ using SuperNewRoles.Roles.Ability.CustomButton;
 using SuperNewRoles;
 using UnityEngine;
 using SuperNewRoles.Events;
+using SuperNewRoles.Events.PCEvents;
 
 namespace SuperNewRoles.Roles.Impostor;
 
@@ -85,7 +86,7 @@ public class BansheeAbility : AbilityBase
     /* データ */
     private ExPlayerControl currentFairyPlayer;
     private bool whisperTriggered = false;
-    private HashSet<byte> playersInRangeAlreadyChecked;
+    private readonly HashSet<byte> playersInRangeAlreadyChecked = new();
     private readonly List<ExPlayerControl> _uiPlayers = new(1);
 
     public BansheeAbility(float releaseCooldown, float whisperCooldown, float fairyRange, bool canKillImpostor, bool canDefaultKill)
@@ -102,12 +103,20 @@ public class BansheeAbility : AbilityBase
         bansheeReleaseAbility = new BansheeReleaseAbility(
             releaseCooldown,
             () => currentFairyPlayer == null && !whisperTriggered,
-            (newFairyPlayer) => { currentFairyPlayer = newFairyPlayer; whisperTriggered = false; }
+            newFairyPlayer =>
+            {
+                if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) RpcSHRFairy(newFairyPlayer, false);
+                else { currentFairyPlayer = newFairyPlayer; whisperTriggered = false; }
+            }
         );
         bansheeWhisperAbility = new BansheeWhisperAbility(
             whisperCooldown,
             () => currentFairyPlayer != null && !whisperTriggered,
-            () => whisperTriggered = true
+            () =>
+            {
+                if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) RpcSHRFairy(currentFairyPlayer, true);
+                else whisperTriggered = true;
+            }
         );
         showPlayerUIAbility = new ShowPlayerUIAbility(GetUiPlayers);
         customKillButtonAbility = new CustomKillButtonAbility(
@@ -117,6 +126,11 @@ public class BansheeAbility : AbilityBase
             () => true,
             killedCallback: (player) =>
             {
+                if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+                {
+                    if (AmongUsClient.Instance?.AmHost == true) RpcSHRReset(true, false);
+                    return;
+                }
                 ResetStatus();
                 bansheeReleaseAbility.ResetTimer();
                 bansheeWhisperAbility.ResetTimer();
@@ -125,13 +139,23 @@ public class BansheeAbility : AbilityBase
         Player.AttachAbility(bansheeWhisperAbility, new AbilityParentAbility(this));
         Player.AttachAbility(showPlayerUIAbility, new AbilityParentAbility(this));
         Player.AttachAbility(customKillButtonAbility, new AbilityParentAbility(this));
+        if (AmongUsClient.Instance?.AmHost == true && Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && !Player.AmOwner)
+        {
+            SubscribeWithAbility(FixedUpdateEvent.Instance, OnFixedUpdate);
+            SubscribeWithAbility(MeetingStartEvent.Instance, OnStartMeeting);
+            SubscribeWithAbility(MurderEvent.Instance, data =>
+            {
+                if (data.killer == Player && data.target != Player && data.resultFlags.HasFlag(MurderResultFlags.Succeeded))
+                    RpcSHRReset(true, false);
+            });
+        }
     }
 
     public override void AttachToLocalPlayer()
     {
         base.AttachToLocalPlayer();
 
-        playersInRangeAlreadyChecked = new();
+        playersInRangeAlreadyChecked.Clear();
         currentFairyPlayer = null;
 
         SubscribeWithAbility(FixedUpdateEvent.Instance, OnFixedUpdate);
@@ -140,7 +164,48 @@ public class BansheeAbility : AbilityBase
 
     private void OnStartMeeting(MeetingStartEventData data)
     {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost != true) return;
+        ResetSynchronized();
+    }
+
+    internal ExPlayerControl SHRFairy => currentFairyPlayer;
+    internal bool SHRWhispering => whisperTriggered;
+
+    [CustomRPC]
+    public void RpcSHRFairy(ExPlayerControl target, bool whisper)
+    {
+        currentFairyPlayer = target;
+        whisperTriggered = whisper;
+        Mode.SHRRoleNameDisplay.Refresh();
+    }
+
+    [CustomRPC]
+    public void RpcSHRReset(bool resetTimers, bool resetKill)
+    {
         ResetStatus();
+        if (resetTimers)
+        {
+            bansheeReleaseAbility.ResetTimer();
+            bansheeWhisperAbility.ResetTimer();
+            Player.GetAbility<Mode.SHRBansheeAbility>()?.ResetCooldowns();
+        }
+        if (resetKill)
+        {
+            Player.ResetKillCooldown();
+            if (AmongUsClient.Instance?.AmHost == true && Player.IsAlive() && Mode.SHRPlayerOptions.IsVanillaGuest(Player.Player))
+                Mode.SHRKillRequests.SetRemainingCooldown(Player.Player, Mode.SHRPlayerOptions.KillCooldown(Player));
+        }
+        Mode.SHRRoleNameDisplay.Refresh();
+    }
+
+    private void ResetSynchronized(bool resetKill = false)
+    {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+        {
+            if (currentFairyPlayer != null || whisperTriggered || resetKill) RpcSHRReset(false, resetKill);
+            else ResetStatus();
+        }
+        else ResetStatus();
     }
     private void ResetStatus()
     {
@@ -167,26 +232,29 @@ public class BansheeAbility : AbilityBase
 
     private void OnFixedUpdate()
     {
+        bool hostSHR = Mode.ModeManager.IsMode(ModeId.SuperHostRoles);
+        if (hostSHR && AmongUsClient.Instance?.AmHost != true) return;
         // 役職者が死亡・切断した後は、残留したイベントリスナーから囁きキルを発生させない。
-        if (Player == null || Player.IsDead())
+        if (Player == null || Player.IsDead() || Player.Data.Disconnected)
         {
-            ResetStatus();
+            ResetSynchronized();
             return;
         }
 
         if (currentFairyPlayer == null) return;
 
         // 妖精がついたプレイヤーが死んだらリセット
-        if (currentFairyPlayer.IsDead())
+        if (currentFairyPlayer.IsDead() || currentFairyPlayer.Data.Disconnected)
         {
-            ResetStatus();
+            ResetSynchronized();
             return;
         }
 
+        var fairyBefore = currentFairyPlayer;
         foreach (var player in ExPlayerControl.ExPlayerControls)
         {
-            if (player.IsDead()) continue;
-            if (player.AmOwner) continue;
+            if (player.IsDead() || player.Data.Disconnected) continue;
+            if (player == Player) continue;
             if (player == currentFairyPlayer) continue;
             if (ModHelpers.IsPositionDistance(currentFairyPlayer.transform.position, player.transform.position, fairyRange))
             {
@@ -196,8 +264,8 @@ public class BansheeAbility : AbilityBase
                     playersInRangeAlreadyChecked.Add(player.PlayerId);
                     if (player.IsImpostor() && !canKillImpostor) continue;
                     Player.RpcCustomDeath(player, CustomDeathType.BansheeWhisper);
-                    Player.ResetKillCooldown();
-                    ResetStatus();
+                    if (hostSHR) ResetSynchronized(resetKill: true);
+                    else { Player.ResetKillCooldown(); ResetStatus(); }
                     break;
                 }
                 currentFairyPlayer = player;
@@ -208,6 +276,8 @@ public class BansheeAbility : AbilityBase
                 playersInRangeAlreadyChecked.Remove(player.PlayerId);
             }
         }
+        if (hostSHR && currentFairyPlayer != null && fairyBefore != currentFairyPlayer)
+            RpcSHRFairy(currentFairyPlayer, whisperTriggered);
     }
 }
 

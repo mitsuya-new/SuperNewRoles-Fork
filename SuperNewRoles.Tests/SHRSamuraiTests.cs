@@ -7,6 +7,18 @@ namespace SuperNewRoles.Tests;
 public class SHRSamuraiTests
 {
     [Theory]
+    [InlineData(VentilationSystem.Operation.Enter)]
+    [InlineData(VentilationSystem.Operation.Move)]
+    public void RejectedTechnicianRequestsBecomeExitsWithoutSkippingNativeSequenceProcessing(VentilationSystem.Operation request)
+    {
+        var rejected = SHRSamuraiRestrictions.RejectVent(RoleId.Technician, false, request);
+        Assert.Equal(VentilationSystem.Operation.Exit, SHRSamuraiRestrictions.ResolveVentOperation(request, rejected));
+        Assert.Equal(typeof(void), typeof(SHRSamuraiRestrictions.VentilationPatch).GetMethod("Prefix")!.ReturnType);
+        var allowed = SHRSamuraiRestrictions.RejectVent(RoleId.Technician, true, request);
+        Assert.Equal(request, SHRSamuraiRestrictions.ResolveVentOperation(request, allowed));
+    }
+
+    [Theory]
     [InlineData(RoleId.Samurai, false, VentilationSystem.Operation.Enter, true)]
     [InlineData(RoleId.Samurai, false, VentilationSystem.Operation.Move, true)]
     [InlineData(RoleId.Samurai, false, VentilationSystem.Operation.Exit, false)]

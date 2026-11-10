@@ -92,19 +92,29 @@ public class EvilSeerHauntAbility(bool canHaunt) : AbilityBase
 
     private readonly bool CanHaunt = canHaunt;
 
+    public override void AttachToAlls()
+    {
+        if (AmongUsClient.Instance?.AmHost == true && Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && !Player.AmOwner)
+            SubscribeWithAbility(DieEvent.Instance, OnPlayerDead);
+    }
+
     public override void AttachToLocalPlayer() =>
         SubscribeWithAbility(DieEvent.Instance, OnPlayerDead);
     private void OnPlayerDead(DieEventData data)
     {
         if (!CanHaunt) return;
-        if (data.player != PlayerControl.LocalPlayer) return;
+        if (data.player != Player) return;
+        bool shr = Mode.ModeManager.IsMode(ModeId.SuperHostRoles);
+        if (shr && AmongUsClient.Instance?.AmHost != true) return;
+        int gameId = AmongUsClient.Instance.GameId;
 
         // MurderData 記録待ちの為に遅延を入れている
         new LateTask(() =>
         {
+            if (AmongUsClient.Instance?.GameId != gameId || Player.GetAbility<EvilSeerHauntAbility>() != this) return;
             if (MurderDataManager.TryGetMurderData(data.player, out var murderData))
             {
-                if (murderData.Target != murderData.Killer)
+                if (murderData.Target != murderData.Killer && murderData.Killer?.Data != null && !murderData.Killer.Data.Disconnected)
                     murderData.Killer.RpcCustomSetModifierRoleInGame(ModifierRoleId.ModifierHauntedWolf);
             }
         }, 1f, "EvilSeerApplyHauntedWolfModifier");

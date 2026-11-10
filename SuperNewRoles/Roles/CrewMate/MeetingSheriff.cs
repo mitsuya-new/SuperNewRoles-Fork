@@ -8,6 +8,7 @@ using SuperNewRoles.Roles.Ability.CustomButton;
 using SuperNewRoles.Modules;
 using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.Modules.Events.Bases;
+using SuperNewRoles.Events;
 
 namespace SuperNewRoles.Roles.Crewmate;
 
@@ -160,6 +161,46 @@ public class MeetingSheriffAbility : CustomMeetingButtonBase, IAbilityCount
         Count = MeetingSheriffAbilityData.KillCount;
     }
 
+    public override void AttachToAlls()
+    {
+        base.AttachToAlls();
+        if (AmongUsClient.Instance?.AmHost == true && Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && !Player.AmOwner)
+            SubscribeWithAbility(MeetingStartEvent.Instance, _ => ShotThisMeeting = 0);
+    }
+
+    internal bool CanShootSHR => Player.IsAlive() && HasCount && ShotThisMeeting < MeetingSheriffAbilityData.ShotsPerMeeting;
+
+    internal bool TryShootSHR(ExPlayerControl target)
+    {
+        if (AmongUsClient.Instance?.AmHost != true || !Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            || !CanShootSHR || Player.Data.Disconnected || target == null || target == Player || target.IsDead()
+            || target.Data.Disconnected || MeetingHud.Instance == null || Mode.SHRAntiBlackout.Active
+            || MeetingHud.Instance.state is not (MeetingHud.MeetingStates.Discussion or MeetingHud.MeetingStates.NotVoted or MeetingHud.MeetingStates.Voted)) return false;
+        this.UseAbilityCount();
+        RpcRecordSHRShot(Player.Player);
+        MeetingSheriffAbilityData.JudgmentData(Player.Player, target, out bool murder, out bool suicide);
+        RpcShotMeetingSheriff(Player.Player, target, murder, suicide);
+        return true;
+    }
+
+    [CustomRPC]
+    public static void RpcRequestSHRShot(PlayerControl shooter, ExPlayerControl target)
+    {
+        if (AmongUsClient.Instance?.AmHost == true && ((ExPlayerControl)shooter)?.Role == RoleId.MeetingSheriff)
+            ((ExPlayerControl)shooter).GetAbility<MeetingSheriffAbility>()?.TryShootSHR(target);
+    }
+
+    [CustomRPC]
+    public static void RpcRecordSHRShot(PlayerControl shooter)
+    {
+        var ability = ((ExPlayerControl)shooter)?.GetAbility<MeetingSheriffAbility>();
+        if (ability == null) return;
+        ability.ShotThisMeeting++;
+        if (ability.limitText != null)
+            ability.limitText.text = ModTranslation.GetString("MeetingSheriffLimitText", ability.Count,
+                ability.MeetingSheriffAbilityData.ShotsPerMeeting - ability.ShotThisMeeting);
+    }
+
     public override bool CheckHasButton(ExPlayerControl player)
     {
         return ExPlayerControl.LocalPlayer.IsAlive() && HasCount && player.IsAlive() && ShotThisMeeting < MeetingSheriffAbilityData.ShotsPerMeeting;
@@ -202,6 +243,11 @@ public class MeetingSheriffAbility : CustomMeetingButtonBase, IAbilityCount
 
     public override void OnClick(ExPlayerControl exPlayer, GameObject button)
     {
+        if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            RpcRequestSHRShot(Player.Player, exPlayer);
+            return;
+        }
         // ミーティングHUDの取得と状態チェック
         MeetingHud meetingHud = MeetingHud.Instance;
         if (meetingHud == null) return;
@@ -242,6 +288,7 @@ public class MeetingSheriffAbility : CustomMeetingButtonBase, IAbilityCount
 
         if (isMurdering) // 殺害処理
         {
+            Mode.SHRGuesserCommands.SendVanillaShot(killer, target);
             target.Player.Exiled();
             target.FinalStatus = abilityData.IsWrongMurder(isSuicide) ? FinalStatus.SheriffWrongfulMurder : FinalStatus.SheriffKill;
             MurderDataManager.AddMurderData(expKiller, target);
@@ -255,6 +302,7 @@ public class MeetingSheriffAbility : CustomMeetingButtonBase, IAbilityCount
 
         if (isSuicide) // 自害処理
         {
+            Mode.SHRGuesserCommands.SendVanillaShot(killer, expKiller);
             expKiller.Player.Exiled();
             expKiller.FinalStatus = abilityData.IsAlwaysSuicide ? FinalStatus.SheriffSuicide : FinalStatus.SheriffMisFire;
 
@@ -279,6 +327,8 @@ public class MeetingSheriffAbility : CustomMeetingButtonBase, IAbilityCount
                 }
                 pva.UnsetVote();
             }
+            if (AmongUsClient.Instance.AmHost && Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+                foreach (var pva in MeetingHud.Instance.playerStates) MeetingHud.Instance.RpcClearVote(pva.PlayerId);
             MeetingHud.Instance.ClearVote(PlayerControl.LocalPlayer.PlayerId, true);
             if (AmongUsClient.Instance.AmHost)
                 MeetingHud.Instance.CheckForEndVoting();

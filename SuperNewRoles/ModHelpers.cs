@@ -551,6 +551,13 @@ public static class ModHelpers
     [CustomRPC]
     public static void RpcOpenToilet(PlayerControl pc)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            if (AmongUsClient.Instance?.AmHost == true && GameOptionsManager.Instance.CurrentGameOptions.MapId == 4)
+                foreach (byte door in new byte[] { 79, 80, 81, 82 })
+                    SuperNewRoles.Mode.SHRCrewRoleAbility.UpdateSystem(pc, SystemTypes.Doors, door);
+            return;
+        }
         foreach (byte i in new[] { 79, 80, 81, 82 })
         {
             ShipStatus.Instance.UpdateSystem(SystemTypes.Doors, pc, i);

@@ -10,6 +10,13 @@ namespace SuperNewRoles.HelpMenus;
 
 public static class RoleDetailMenu
 {
+    internal static string GetDescriptionKey(string roleName, bool shrMode, System.Func<string, bool> hasTranslation)
+    {
+        string normal = $"{roleName}.Description";
+        string shr = $"{normal}.SHR";
+        return shrMode && hasTranslation(shr) ? shr : normal;
+    }
+
     private static GameObject selectedButton;
     private static GameObject menuObject;
 
@@ -70,7 +77,9 @@ public static class RoleDetailMenu
         string teamText = role.AssignedTeams.Count == 0 ? ModTranslation.GetString("HelpMenu.AllTeams")
             : string.Join(", ", role.AssignedTeams.Select(t => ModHelpers.CsWithTranslation(GetTeamColor(t), t.ToString())));
         SetTextComponent(roleInformation, "RoleTeam", Color.white, teamText);
-        SetTextComponent(roleInformation, "RoleDescription", Color.white, $"{role.RoleName}.Description");
+        string descriptionKey = GetDescriptionKey(role.RoleName, ModeManager.IsMode(ModeId.SuperHostRoles),
+            key => ModTranslation.TryGetString(key, out var text) && !string.IsNullOrWhiteSpace(text));
+        SetTextComponent(roleInformation, "RoleDescription", Color.white, descriptionKey);
         UpdateSHRSupportLabel(roleInformation, role is IRoleBase roleBase && SHRRoleTypes.HasImplementedSupport(roleBase.Role));
         SetTextComponent(roleInformation, "RoleSettingsTitle", Color.white, "HelpMenu.MyRoleInformation.RoleSettingsTitle");
         string roleSettings = GenerateRoleSettingsText(role);

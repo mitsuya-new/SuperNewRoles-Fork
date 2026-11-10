@@ -10,6 +10,7 @@ using SuperNewRoles.Roles.Ability;
 using SuperNewRoles.Roles.Ability.CustomButton;
 using SuperNewRoles.Roles.Madmates;
 using UnityEngine;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Impostor;
 
@@ -155,8 +156,51 @@ public class PusherAbility : TargetCustomButtonBase
         ResetTimer();
     }
 
+    internal ExPlayerControl FindSHRTarget() => SetTarget(onlyCrewmates: true, targetingPlayer: Player.Player,
+        isTargetable: candidate => GetTargetPositionDetail(candidate.Player) >= 0 || GetCanUseLadder(candidate.Player) != null);
+
+    internal bool TryUseSHR()
+    {
+        var target = FindSHRTarget();
+        if (target == null) return false;
+        int index = GetTargetPositionDetail(target.Player);
+        var ladder = index < 0 ? GetCanUseLadder(target.Player) : null;
+        if (index < 0 && ladder == null) return false;
+        RpcPushPlayer(Player, target, ladder != null, ladder != null ? ladder.Id : index);
+        ResetTimer();
+        return true;
+    }
+
     [CustomRPC]
     public void RpcPushPlayer(ExPlayerControl source, ExPlayerControl target, bool isLadder, int targetPositionDetailIndex)
+    {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            if (AmongUsClient.Instance?.AmHost != true || !SHRAbilityTriggerPatches.CanActivate(source?.Player) || target?.Data == null
+                || !target.IsAlive() || target.Data.Disconnected) return;
+            var ladder = isLadder ? GetCanUseLadder(target.Player) : null;
+            int index = GetTargetPositionDetail(target.Player);
+            if (isLadder ? ladder == null || ladder.Id != targetPositionDetailIndex : index < 0 || index != targetPositionDetailIndex) return;
+            Vector2 pushPosition = isLadder ? ladder.transform.position + new Vector3(0, 0.15f)
+                : PusherPushPositions[GameManager.Instance.LogicOptions.MapId][index].PushPosition;
+            Vector2? corpsePosition = isLadder ? (Vector2)(ladder.Destination.transform.position + new Vector3(0.15f, 0.2f)) : null;
+            if (!SHRVanillaRpcRouter.PushDeath(source, target, corpsePosition))
+            {
+                if (isLadder && target.IsAlive()) SHRVanillaRpcRouter.Teleport(target, GetSafeLadderBottomPosition(ladder, target.transform.position));
+                return;
+            }
+            SHRVanillaRpcRouter.Teleport(source, pushPosition);
+            RpcPlaySHRPush(source, target, isLadder, targetPositionDetailIndex);
+            return;
+        }
+        PushLocally(source, target, isLadder, targetPositionDetailIndex, true);
+    }
+
+    [CustomRPC]
+    public void RpcPlaySHRPush(ExPlayerControl source, ExPlayerControl target, bool isLadder, int targetPositionDetailIndex)
+        => PushLocally(source, target, isLadder, targetPositionDetailIndex, false);
+
+    private void PushLocally(ExPlayerControl source, ExPlayerControl target, bool isLadder, int targetPositionDetailIndex, bool applyDeath)
     {
         Ladder targetLadder = isLadder ? ShipStatus.Instance.Ladders.FirstOrDefault(x => x.Id == (byte)targetPositionDetailIndex) : null;
         if (isLadder ? targetLadder == null : PusherPushPositions[GameManager.Instance.LogicOptions.MapId].Length <= targetPositionDetailIndex)
@@ -177,7 +221,7 @@ public class PusherAbility : TargetCustomButtonBase
         if (source == null || target == null)
             return;
 
-        target.CustomDeath(CustomDeathType.Push, source: source);
+        if (applyDeath) target.CustomDeath(CustomDeathType.Push, source: source);
         if (!target.IsDead())
         {
             if (isLadder)
@@ -187,9 +231,9 @@ public class PusherAbility : TargetCustomButtonBase
 
         PushAnimation(source);
 
-        target.NetTransform.SnapTo(pushPosition);
+        if (!ModeManager.IsMode(ModeId.SuperHostRoles)) target.NetTransform.SnapTo(pushPosition);
         target.transform.position = pushPosition;
-        source.NetTransform.SnapTo(pushPosition);
+        if (!ModeManager.IsMode(ModeId.SuperHostRoles)) source.NetTransform.SnapTo(pushPosition);
         source.transform.position = pushPosition;
         DeadBody deadBody = null;
         Vector3 deadBodyPosition = new();
@@ -213,7 +257,7 @@ public class PusherAbility : TargetCustomButtonBase
         PushedPlayerDeadbody pushedPlayerDeadbody = new GameObject("PushedPlayerDeadBody").AddComponent<PushedPlayerDeadbody>();
         pushedPlayerDeadbody.Init(source, target, pushTarget, deadBody, deadBodyPosition);
 
-        if (_revengeRole)
+        if (_revengeRole && (!ModeManager.IsMode(ModeId.SuperHostRoles) || AmongUsClient.Instance?.AmHost == true))
         {
             foreach (var ability in target.GetAbilities<RevengeExileAbility>())
             {
@@ -338,7 +382,7 @@ public class PusherAbility : TargetCustomButtonBase
 
     private Ladder GetCanUseLadder(PlayerControl player)
     {
-        if (player == null)
+        if (player == null || ShipStatus.Instance?.Ladders == null)
             return null;
         Ladder ladder = ShipStatus.Instance.Ladders.FirstOrDefault(x => x.IsTop && Vector2.Distance(x.transform.position, player.transform.position) <= x.UsableDistance);
         return ladder;
@@ -349,9 +393,11 @@ public class PusherAbility : TargetCustomButtonBase
         if (player == null)
             return -1;
         int i = 0;
-        foreach (var positiondata in PusherPushPositions[GameManager.Instance.LogicOptions.MapId])
+        if (GameManager.Instance?.LogicOptions == null || !PusherPushPositions.TryGetValue(GameManager.Instance.LogicOptions.MapId, out var positions)) return -1;
+        foreach (var positiondata in positions)
         {
-            if (Vector2.Distance(positiondata.Position, player.transform.position) > positiondata.Radius)
+            if (!SHRPusherAbility.IsWithinPushSite(positiondata.Position.x - player.transform.position.x,
+                positiondata.Position.y - player.transform.position.y, positiondata.Radius))
             {
                 i++;
                 continue;

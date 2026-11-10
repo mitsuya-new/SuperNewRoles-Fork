@@ -7,15 +7,19 @@ using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.Modules;
 using SuperNewRoles.Roles.Ability;
 using UnityEngine;
+using InnerNet;
+using AmongUs.InnerNet.GameDataMessages;
 
 namespace SuperNewRoles.Mode;
 
 public static class SHRVanillaRpcRouter
 {
-    internal enum Operation { None, Kill, Suicide, Exile, SetTasks, Report, SnapTo, Shapeshift, MurderResult, Revenge, VampireLinkedDeath, VampireLinkedExile }
+    internal enum Operation { None, Kill, Suicide, Exile, SetTasks, Report, SnapTo, Shapeshift, MurderResult, Revenge, VampireLinkedDeath, VampireLinkedExile, Camouflage, FalseCharge }
 
     internal static Operation Classify(MethodBase method, object[] args)
     {
+        if (method.DeclaringType == typeof(CamouflagerAbility) && method.Name == nameof(CamouflagerAbility.RpcRequestSHRStart))
+            return Operation.Camouflage;
         if (method.DeclaringType == typeof(CustomDeathExtensions) && method.Name == nameof(CustomDeathExtensions.RpcCustomDeath)
             && args.Length >= 2 && args[^1] is CustomDeathType death)
             return death switch
@@ -23,6 +27,7 @@ public static class SHRVanillaRpcRouter
                 CustomDeathType.Kill => Operation.Kill,
                 CustomDeathType.Suicide => Operation.Suicide,
                 CustomDeathType.Exile => Operation.Exile,
+                CustomDeathType.FalseCharge => Operation.FalseCharge,
                 CustomDeathType.Revange => Operation.Revenge,
                 CustomDeathType.VampireWithDead => Operation.VampireLinkedDeath,
                 CustomDeathType.VampireWithDeadNonDeadbody => Operation.VampireLinkedExile,
@@ -50,15 +55,15 @@ public static class SHRVanillaRpcRouter
             && (!Patches.SyncVersion.VersionData.VersionMap.TryGetValue(player.PlayerId, out string version)
                 || string.IsNullOrEmpty(version));
 
-    internal static bool Teleport(ExPlayerControl player, Vector2 position)
+    internal static bool Teleport(ExPlayerControl player, Vector2 position, bool force = false)
     {
         var client = AmongUsClient.Instance;
         if (client == null || !client.AmHost || !ModeManager.IsMode(ModeId.SuperHostRoles)
             || player?.Data == null || player.Data.Disconnected || !player.IsAlive() || player.NetTransform == null) return false;
         var net = player.NetTransform;
-        if (((Vector2)player.transform.position - position).sqrMagnitude < 0.0001f) return true;
+        if (!force && ((Vector2)player.transform.position - position).sqrMagnitude < 0.0001f) return true;
         net.SnapTo(position, unchecked((ushort)(net.lastSequenceId + 128)));
-        var writer = client.StartRpcImmediately(net.NetId, (byte)RpcCalls.SnapTo, SendOption.None);
+        var writer = client.StartRpcImmediately(net.NetId, (byte)RpcCalls.SnapTo, force ? SendOption.Reliable : SendOption.None);
         NetHelpers.WriteVector2(position, writer);
         writer.Write(unchecked((ushort)(net.lastSequenceId + 2)));
         client.FinishRpcImmediately(writer);
@@ -80,6 +85,9 @@ public static class SHRVanillaRpcRouter
 
         switch (operation)
         {
+            case Operation.Camouflage:
+                ((ExPlayerControl)args[0])?.GetAbility<CamouflagerAbility>()?.SHRController?.Start();
+                break;
             case Operation.Kill:
                 SHRMurderSync.Murder((ExPlayerControl)args[0], (ExPlayerControl)args[args.Length == 3 ? 1 : 0]);
                 break;
@@ -89,6 +97,10 @@ public static class SHRVanillaRpcRouter
                 break;
             case Operation.Exile:
                 Exile((ExPlayerControl)args[args.Length == 3 ? 1 : 0]);
+                break;
+            case Operation.FalseCharge:
+                var falselyCharged = (ExPlayerControl)args[args.Length == 3 ? 1 : 0];
+                if (Exile(falselyCharged)) FinalStatusManager.SetFinalStatus(falselyCharged, FinalStatus.FalseCharge);
                 break;
             case Operation.Revenge:
                 var revengeTarget = (ExPlayerControl)args[args.Length == 3 ? 1 : 0];
@@ -114,6 +126,7 @@ public static class SHRVanillaRpcRouter
                 ((ExPlayerControl)args[0]).NetTransform.RpcSnapTo((Vector2)args[1]);
                 break;
             case Operation.Shapeshift:
+                if (SHRCamouflagerController.BlocksShape((PlayerControl)args[0], (PlayerControl)args[1])) break;
                 ((PlayerControl)args[0]).RpcShapeshift((PlayerControl)args[1], (bool)args[2]);
                 break;
             case Operation.MurderResult:
@@ -125,7 +138,7 @@ public static class SHRVanillaRpcRouter
         return true;
     }
 
-    private static bool Exile(ExPlayerControl player)
+    internal static bool Exile(ExPlayerControl player)
     {
         if (player?.Data == null || player.Data.Disconnected || player.Data.IsDead) return false;
         if (ExileEvent.Invoke(player).RefCanceled) return false;
@@ -139,5 +152,77 @@ public static class SHRVanillaRpcRouter
         player.Player.Exiled();
         FinalStatusManager.SetFinalStatus(player, FinalStatus.Exiled);
         return true;
+    }
+
+    internal static bool RocketDeath(ExPlayerControl source, ExPlayerControl target)
+        => AbilityExile(source, target, CustomDeathType.LaunchByRocket, FinalStatus.LaunchByRocket, null);
+
+    internal static bool PushDeath(ExPlayerControl source, ExPlayerControl target, Vector2? corpsePosition)
+        => AbilityExile(source, target, CustomDeathType.Push, FinalStatus.Push, corpsePosition);
+
+    private static bool AbilityExile(ExPlayerControl source, ExPlayerControl target, CustomDeathType death, FinalStatus status, Vector2? corpsePosition)
+    {
+        var requested = target;
+        var client = AmongUsClient.Instance;
+        if (client?.AmHost != true || !ModeManager.IsMode(ModeId.SuperHostRoles)
+            || client.GameState != InnerNet.InnerNetClient.GameStates.Started || client.IsGameOver
+            || source?.Data == null || source.Data.Disconnected || target?.Data == null || target.Data.IsDead || target.Data.Disconnected) return false;
+        if (SHRWaveCannonController.BlocksAttack(SHRWaveCannonController.IsProtected(target), source == target, death)) return false;
+        if (!TryKillEvent.Invoke(source, ref target).RefSuccess || target?.Data == null || target.Data.IsDead || target.Data.Disconnected) return false;
+        if (SHRWaveCannonController.BlocksAttack(SHRWaveCannonController.IsProtected(target), source == target, death)) return false;
+        if (SHRPrivatePlayerEffects.IsHidden(target)) SHRPrivatePlayerEffects.HideInVent(target, false);
+        if (corpsePosition.HasValue && target == requested)
+        {
+            Vector2 original = target.transform.position;
+            ushort sequence = unchecked((ushort)(target.NetTransform.lastSequenceId + 128));
+            target.NetTransform.SnapTo(original, sequence);
+            foreach (var viewer in PlayerControl.AllPlayerControls)
+            {
+                if (viewer?.Data == null || viewer.AmOwner || viewer.Data.Disconnected) continue;
+                int viewerId = client.GetClientIdFromCharacter(viewer);
+                if (viewerId < 0) continue;
+                bool vanilla = SHRPlayerOptions.IsVanillaGuest(viewer);
+                SendPushDeath(target, viewerId, vanilla ? corpsePosition.Value : original, sequence, vanilla);
+            }
+        }
+        else if (!SHRAntiBlackout.DeferExile(target.Player))
+        {
+            var writer = client.StartRpcImmediately(target.Player.NetId, (byte)RpcCalls.Exiled, SendOption.Reliable, -1);
+            client.FinishRpcImmediately(writer);
+        }
+        target.Player.Exiled();
+        FinalStatusManager.SetFinalStatus(target, status);
+        MurderDataManager.AddMurderData(source, target);
+        return requested.Data.IsDead;
+    }
+
+    private static void SendPushDeath(ExPlayerControl target, int viewerId, Vector2 position, ushort sequence, bool vanilla)
+    {
+        var client = AmongUsClient.Instance;
+        var writer = MessageWriter.Get(SendOption.Reliable);
+        try
+        {
+            writer.StartMessage(Tags.GameDataTo);
+            writer.Write(client.GameId);
+            writer.WritePacked(viewerId);
+            writer.StartMessage((byte)GameDataTypes.RpcFlag);
+            writer.WritePacked(target.NetTransform.NetId);
+            writer.Write((byte)RpcCalls.SnapTo);
+            NetHelpers.WriteVector2(position, writer);
+            writer.Write(sequence);
+            writer.EndMessage();
+            writer.StartMessage((byte)GameDataTypes.RpcFlag);
+            writer.WritePacked(target.Player.NetId);
+            writer.Write((byte)(vanilla ? RpcCalls.MurderPlayer : RpcCalls.Exiled));
+            if (vanilla)
+            {
+                writer.WriteNetObject(target.Player);
+                writer.Write((int)(MurderResultFlags.DecisionByHost | MurderResultFlags.Succeeded));
+            }
+            writer.EndMessage();
+            writer.EndMessage();
+            client.SendOrDisconnect(writer);
+        }
+        finally { writer.Recycle(); }
     }
 }

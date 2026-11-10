@@ -7,6 +7,7 @@ using AmongUs.GameOptions;
 using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.Events;
 using SuperNewRoles.Roles.Ability.CustomButton;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Ability;
 
@@ -19,6 +20,13 @@ public class DoppelgangerAbility : AbilityBase
 
     // ShapeshiftButtonAbilityのインスタンスを保持
     private ShapeshiftButtonAbility _shapeshiftButtonAbility;
+    private PlayerControl shrShapeTarget;
+    internal float? SHRKillCooldown { get; private set; }
+    private bool IsVanillaHost => AmongUsClient.Instance?.AmHost == true
+        && ModeManager.IsMode(ModeId.SuperHostRoles) && SHRPlayerOptions.IsVanillaGuest(Player.Player);
+
+    internal static float SelectCooldown(bool shifted, bool killedShapeTarget, float success, float failure)
+        => shifted && killedShapeTarget ? success : failure;
 
     public DoppelgangerAbility(DoppelgangerAbilityOption option)
     {
@@ -34,6 +42,14 @@ public class DoppelgangerAbility : AbilityBase
         if (!data.resultFlags.HasFlag(MurderResultFlags.Succeeded)) return;
         if (data.target == null) return;
         if (data.target.IsAlive()) return;
+        if (IsVanillaHost)
+        {
+            if (!Player.IsAlive() || data.target == Player) return;
+            float cooldown = SelectCooldown(shrShapeTarget != null, data.target.Player == shrShapeTarget, SucCool, NotSucCool);
+            SHRKillCooldown = cooldown;
+            SHRKillRequests.SetRemainingCooldown(Player.Player, cooldown);
+            return;
+        }
         if (_shapeshiftButtonAbility == null) return;
 
         PlayerControl currentTarget = _shapeshiftButtonAbility.isEffectActive
@@ -50,6 +66,32 @@ public class DoppelgangerAbility : AbilityBase
     public override void AttachToLocalPlayer()
     {
         SubscribeWithAbility(MurderEvent.Instance, OnMurderPlayer);
+    }
+
+    public override void AttachToOthers()
+    {
+        if (!IsVanillaHost) return;
+        SubscribeWithAbility(MurderEvent.Instance, OnMurderPlayer);
+        SubscribeWithAbility(ShapeshiftEvent.Instance, OnSHRShapeshift);
+        SubscribeWithAbility(WrapUpEvent.Instance, OnSHRWrapUp);
+    }
+
+    private void OnSHRShapeshift(ShapeshiftEventData data)
+    {
+        if (data.shapeshifter != Player.Player) return;
+        shrShapeTarget = data.target == Player.Player ? null : data.target;
+    }
+
+    private void OnSHRWrapUp(WrapUpEventData data)
+    {
+        shrShapeTarget = null;
+        new LateTask(() =>
+        {
+            if (!IsVanillaHost || !Player.IsAlive() || AmongUsClient.Instance.IsGameOver
+                || Player.GetAbility<DoppelgangerAbility>() != this) return;
+            SHRKillCooldown = null;
+            SHRKillRequests.SetRemainingCooldown(Player.Player, SHRPlayerOptions.KillCooldown(Player));
+        }, 0.5f, "SHR Doppelganger Reset Kill Cooldown After Meeting");
     }
 
     public override void AttachToAlls()

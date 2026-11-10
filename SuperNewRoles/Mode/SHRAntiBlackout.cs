@@ -19,6 +19,7 @@ public static class SHRAntiBlackout
     private static bool deferredExile;
     private static NetworkedPlayerInfo realExiled;
     private static readonly HashSet<byte> DeferredDeaths = new();
+    private static readonly HashSet<byte> DeferredRevives = new();
 
     private static bool IsHostSHR => AmongUsClient.Instance?.AmHost == true
         && ModeManager.IsMode(ModeId.SuperHostRoles);
@@ -36,7 +37,7 @@ public static class SHRAntiBlackout
 
     internal static byte ForcedVoteTarget(bool dead) => dead ? (byte)252 : (byte)253;
 
-    private static bool Begin(NetworkedPlayerInfo exiled, bool tie)
+    private static bool Begin(NetworkedPlayerInfo exiled, bool tie, Il2CppStructArray<MeetingHud.VoterState> states)
     {
         if (!IsHostSHR || Active) return false;
         var players = PlayerControl.AllPlayerControls.ToArray()
@@ -45,8 +46,9 @@ public static class SHRAntiBlackout
         SHRMeetingChat.Restore();
         realExiled = tie ? null : exiled;
         deferredExile = ShouldDeferExile(players.Length, realExiled != null);
-        var dummy = players.FirstOrDefault(p => !p.Data.IsDead && p.PlayerId != realExiled?.PlayerId)
-            ?? players.FirstOrDefault(p => p.PlayerId != realExiled?.PlayerId);
+        SHRBakeryExile.Prepare(exiled, tie, players.Length, states.Select(state => state.VotedForId));
+        var dummy = players.FirstOrDefault(p => !p.Data.IsDead && p.PlayerId != realExiled?.PlayerId && p.PlayerId != SHRBakeryExile.CarrierId)
+            ?? players.FirstOrDefault(p => p.PlayerId != realExiled?.PlayerId && p.PlayerId != SHRBakeryExile.CarrierId);
         if (dummy == null) return false;
         Active = true;
         completing = false;
@@ -99,6 +101,18 @@ public static class SHRAntiBlackout
         return true;
     }
 
+    internal static void RegisterNativeExile(PlayerControl player)
+    {
+        if (Active && IsHostSHR && player?.Data?.IsDead == true) DeferredDeaths.Add(player.PlayerId);
+    }
+
+    internal static bool DeferRevive(PlayerControl player)
+    {
+        if (!Active || !IsHostSHR || player?.Data == null || player.Data.IsDead || player.Data.Disconnected) return false;
+        DeferredRevives.Add(player.PlayerId);
+        return true;
+    }
+
     internal static bool RouteRoleUpdate(PlayerControl subject, RoleTypes role, bool canOverrideRole)
     {
         if (!Active || !IsHostSHR) return false;
@@ -130,6 +144,11 @@ public static class SHRAntiBlackout
             foreach (var subject in PlayerControl.AllPlayerControls)
             {
                 if (subject?.Data?.Role == null || subject.Data.Disconnected) continue;
+                if (DeferredRevives.Contains(subject.PlayerId) && !subject.Data.IsDead)
+                {
+                    SHRReviveSync.RestoreViewer(subject, viewer);
+                    continue;
+                }
                 SHRTestRoleAbility.SendRoleView(subject, viewer, SHRMeetingChat.GetCurrentViewRole(viewer, subject), allowDuringTransition: true);
                 SHRMeetingChat.SendState(viewer, subject, hide: false);
             }
@@ -138,7 +157,9 @@ public static class SHRAntiBlackout
                     if (data?.Disconnected == true) SHRMeetingChat.SendDisconnectedState(viewer, data);
             SHRPlayerOptions.Send(viewer, killCooldown: SHRKillRequests.RemainingCooldown(viewer),
                 resetKill: true, resetAbility: !viewer.Data.IsDead);
+            SHRRedRidingHoodGhosts.Refresh(viewer, force: true);
         }
+        SHRBakeryExile.Restore();
         Clear();
         Logger.Debug("Restored meeting roles and death states", "SHR.AntiBlackout");
     }
@@ -149,6 +170,7 @@ public static class SHRAntiBlackout
         Active = completing = deferredExile = false;
         realExiled = null;
         DeferredDeaths.Clear();
+        DeferredRevives.Clear();
     }
 
     [HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.RpcVotingComplete))]
@@ -158,13 +180,14 @@ public static class SHRAntiBlackout
         public static bool Prefix(MeetingHud __instance, Il2CppStructArray<MeetingHud.VoterState> states,
             NetworkedPlayerInfo exiled, bool tie, bool wasOverruled, ushort overruleNonce)
         {
-            if (!Begin(exiled, tie)) return true;
+            if (!Begin(exiled, tie, states)) return true;
             var client = AmongUsClient.Instance;
             foreach (var viewer in PlayerControl.AllPlayerControls)
             {
                 if (viewer == null || viewer.AmOwner || viewer.Data == null || viewer.Data.Disconnected) continue;
                 int id = client.GetClientIdFromCharacter(viewer);
                 if (id < 0) continue;
+                if (SHRBakeryExile.SendVotingComplete(__instance, viewer, states, wasOverruled, overruleNonce)) continue;
                 bool defer = deferredExile && SHRPlayerOptions.IsVanillaGuest(viewer);
                 var writer = client.StartRpcImmediately(__instance.NetId, (byte)RpcCalls.VotingComplete, SendOption.Reliable, id);
                 new RpcVotingCompleteMessage(__instance.NetId, states,
@@ -207,9 +230,9 @@ public static class SHRAntiBlackout
     }
 
     [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.CoStartGame))]
-    public static class StartPatch { public static void Prefix() => Clear(); }
+    public static class StartPatch { public static void Prefix() { SHRBakeryExile.Clear(); Clear(); } }
     [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnGameEnd))]
-    public static class EndPatch { public static void Prefix() => Clear(); }
+    public static class EndPatch { public static void Prefix() { SHRBakeryExile.Restore(); SHRBakeryExile.Clear(); Clear(); } }
     [HarmonyPatch(typeof(AmongUsClient), nameof(AmongUsClient.OnDisconnected))]
-    public static class DisconnectPatch { public static void Prefix() => Clear(); }
+    public static class DisconnectPatch { public static void Prefix() { SHRBakeryExile.Clear(); Clear(); } }
 }

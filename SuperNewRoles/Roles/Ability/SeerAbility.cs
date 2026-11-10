@@ -50,16 +50,7 @@ public class SeerAbility : AbilityBase
         {
             // 死亡位置を記録
 
-            var colorId = Data.SoulColorMode switch
-            {
-                DeadBodyColorMode.None => DefaultSoulColorId, // シーア 或いは EvilSeerで設定が無効な場合
-                // イビルシーアで明暗表示が有効, 又は死体色表示が有効でColorIdが不正な場合
-                DeadBodyColorMode.LightAndDarkness or DeadBodyColorMode.Adaptive when !CustomCosmetics.CustomColors.IsValidColorId(data.player.Data.DefaultOutfit.ColorId) => CustomCosmetics.CustomColors.IsLighter(data.player)
-                                        ? LightSoulColorId // 明るい色を反映
-                                        : DarknessSoulColorId, // 暗い色を反映
-                DeadBodyColorMode.Adaptive => data.player.Data.DefaultOutfit.ColorId, // イビルシーアで設定が有効な場合は、プレイヤーの色を使用
-                _ => DefaultSoulColorId, // その他
-            };
+            var colorId = SoulColorId(data.player);
 
             // 霊魂を即表示（会議を待たずに表示）
             CreateSoul(data.player.transform.position, colorId);
@@ -90,6 +81,15 @@ public class SeerAbility : AbilityBase
         }
         return false;
     }
+
+    internal int SoulColorId(ExPlayerControl player) => Data.SoulColorMode switch
+    {
+        DeadBodyColorMode.None => DefaultSoulColorId,
+        DeadBodyColorMode.LightAndDarkness or DeadBodyColorMode.Adaptive when !CustomCosmetics.CustomColors.IsValidColorId(player.Data.DefaultOutfit.ColorId)
+            => CustomCosmetics.CustomColors.IsLighter(player) ? LightSoulColorId : DarknessSoulColorId,
+        DeadBodyColorMode.Adaptive => player.Data.DefaultOutfit.ColorId,
+        _ => DefaultSoulColorId,
+    };
 
     // 霊魂を作成する共通メソッド
     private void CreateSoul(Vector3 position, int colorId)
@@ -155,7 +155,7 @@ public class SeerAbility : AbilityBase
         return flashColor;
     }
 
-    private string FlashColorText(ExPlayerControl exp)
+    internal string FlashColorText(ExPlayerControl exp)
     {
         string colorText;
 

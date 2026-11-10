@@ -63,7 +63,7 @@ public class WiseManAbility : CustomButtonBase, IButtonEffect
         if (data.player.AmOwner)
             data.player.moveable = true;
         Active = false;
-        Camera.main.GetComponent<FollowerCamera>().Locked = false;
+        if (Player.AmOwner) Camera.main.GetComponent<FollowerCamera>().Locked = false;
     }
 
     public override void AttachToLocalPlayer()

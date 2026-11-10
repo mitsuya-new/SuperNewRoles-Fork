@@ -194,6 +194,11 @@ public static class CustomDeathExtensions
                 MurderDataManager.AddMurderData(source, player);
                 break;
             case CustomDeathType.LaunchByRocket:
+                if (ModeManager.IsMode(ModeId.SuperHostRoles))
+                {
+                    if (AmongUsClient.Instance.AmHost) SHRVanillaRpcRouter.RocketDeath(source, player);
+                    break;
+                }
                 if (!TryKillEvent.Invoke(source, ref player).RefSuccess)
                     break;
                 player.Player.Exiled();
@@ -234,6 +239,12 @@ public static class CustomDeathExtensions
                 FinalStatusManager.SetFinalStatus(player, FinalStatus.Suicide);
                 break;
             case CustomDeathType.BansheeWhisper:
+                if (ModeManager.IsMode(ModeId.SuperHostRoles))
+                {
+                    if (AmongUsClient.Instance.AmHost)
+                        SHRMurderSync.Murder(source, player, explosion: true, finalStatus: FinalStatus.BansheeWhisper);
+                    break;
+                }
                 if (!TryKillEvent.Invoke(source, ref player).RefSuccess)
                     break;
                 if (IsProtectedByGuardianThisRound(player))
@@ -266,6 +277,12 @@ public static class CustomDeathExtensions
                 MurderDataManager.AddMurderData(source, player);
                 break;
             case CustomDeathType.ConjurerMagic:
+                if (ModeManager.IsMode(ModeId.SuperHostRoles))
+                {
+                    if (AmongUsClient.Instance.AmHost)
+                        SHRMurderSync.Murder(source, player, explosion: true, finalStatus: FinalStatus.ConjurerMagic);
+                    break;
+                }
                 if (source == null)
                     throw new Exception("Source is null");
                 if (!TryKillEvent.Invoke(source, ref player).RefSuccess)

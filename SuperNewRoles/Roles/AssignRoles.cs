@@ -211,7 +211,8 @@ public static class AssignRoles
         }
         foreach (var roleOption in RoleOptionManager.RoleOptions)
         {
-            if (ModeManager.IsMode(ModeId.SuperHostRoles) && !SHRRoleTypes.IsSupported(roleOption.RoleId))
+            if (ModeManager.IsMode(ModeId.SuperHostRoles) && (!SHRRoleTypes.IsSupported(roleOption.RoleId)
+                || !SHRRoleTypes.IsAvailableOnMap(roleOption.RoleId, GameOptionsManager.Instance.CurrentGameOptions.MapId)))
                 continue;
             if (roleOption.NumberOfCrews <= 0)
                 continue;

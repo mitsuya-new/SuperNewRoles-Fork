@@ -128,7 +128,7 @@ public static class NameText
         string TaskText = "";
         try
         {
-            if (player.IsTaskTriggerRole())
+            if (player.IsTaskTriggerRole() && player.IsCountTask())
             {
                 var (complete, all) = player.GetAllTaskForShowProgress();
                 // MadJesterの場合は3つの数値を表示 (現在のタスク数/狂信発動タスク数/勝利タスク数)
@@ -181,7 +181,10 @@ public static class NameText
         player.PlayerInfoText.text = playerInfoText;
         if (player.MeetingInfoText != null)
             player.MeetingInfoText.text = meetingInfoText;
-        player.cosmetics.nameText.text = player.Player.CurrentOutfit.PlayerName;
+        bool shrCamouflaged = CamouflagerAbility.SHRActive;
+        player.cosmetics.nameText.text = shrCamouflaged && player.IsAlive() && MeetingHud.Instance == null
+            ? player.AmOwner ? "" : Mode.SHRCamouflagerController.AnonymousName
+            : player.Player.CurrentOutfit.PlayerName;
         if (player.VoteArea != null)
             player.VoteArea.NameText.text = player.Player.Data.DefaultOutfit.PlayerName;
 

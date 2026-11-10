@@ -128,6 +128,8 @@ public class JammerAbility : TargetCustomButtonBase, IButtonEffect
     {
         base.DetachToAlls();
         _opacityFader.StopAll();
+        if (_invisibleTarget != null && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+            SuperNewRoles.Mode.SHRPrivatePlayerEffects.SetHidden(_invisibleTarget, this, false, null);
     }
 
     public override void AttachToLocalPlayer()
@@ -186,7 +188,9 @@ public class JammerAbility : TargetCustomButtonBase, IButtonEffect
         }
         SetInvisible(target, isInvisible);
         if (AmongUsClient.Instance?.AmHost == true && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
-            SuperNewRoles.Mode.SHRPrivatePlayerEffects.HideInVent(target, isInvisible);
+            SuperNewRoles.Mode.SHRPrivatePlayerEffects.SetHidden(target, this, isInvisible,
+                viewer => SuperNewRoles.Mode.SHRPrivatePlayerEffects.ShouldHideFrom(viewer == target.Player,
+                    SuperNewRoles.Mode.SHRPlayerOptions.IsVanillaGuest(viewer), ((ExPlayerControl)viewer).IsImpostor()));
     }
 
     private void SetInvisible(ExPlayerControl target, bool isInvisible)

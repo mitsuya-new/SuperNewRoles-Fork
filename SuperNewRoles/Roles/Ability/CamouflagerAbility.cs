@@ -9,6 +9,7 @@ using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.Roles.Ability.CustomButton;
 using SuperNewRoles.CustomCosmetics.CosmeticsPlayer;
 using SuperNewRoles.Extensions;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Ability;
 
@@ -22,6 +23,9 @@ public class CamouflagerAbility : AbilityBase
     private CamouflageButtonAbility _camouflageButtonAbility;
     private Dictionary<byte, PlayerOutfitData> _originalOutfits = new();
     public bool _isCamouflaged { get; private set; }
+    internal SHRCamouflagerController SHRController { get; private set; }
+    internal static bool SHRActive => ModeManager.IsMode(ModeId.SuperHostRoles)
+        && ExPlayerControl.ExPlayerControls.Any(p => p.GetAbility<CamouflagerAbility>()?._isCamouflaged == true);
 
 
     public CamouflagerAbility(CamouflagerAbilityOption option)
@@ -37,6 +41,15 @@ public class CamouflagerAbility : AbilityBase
         base.AttachToAlls();
 
         _camouflageButtonAbility = new CamouflageButtonAbility(CoolTime, DurationTime, this);
+        if (ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            SHRController = new SHRCamouflagerController(this);
+            SubscribeWithAbility(FixedUpdateEvent.Instance, SHRController.Tick);
+            SubscribeWithAbility(WrapUpEvent.Instance, _ => SHRController.ResetCooldown());
+            if (AmongUsClient.Instance?.AmHost == true && SHRPlayerOptions.IsVanillaGuest(Player.Player))
+                Player.AttachAbility(new SHRAbilityTriggerAbility(SHRAbilityTrigger.Phantom,
+                    _ => SHRController.Start(), SHRController.CanStart), new AbilityParentAbility(this));
+        }
         SubscribeWithAbility(MeetingStartEvent.Instance, OnMeetingStart);
         SubscribeWithAbility(DieEvent.Instance, OnDie);
         Player.AttachAbility(_camouflageButtonAbility, new AbilityParentAbility(this));
@@ -73,8 +86,27 @@ public class CamouflagerAbility : AbilityBase
         EndCamouflage();
     }
 
+    [CustomRPC]
+    public static void RpcRequestSHRStart(ExPlayerControl player)
+    {
+        if (AmongUsClient.Instance?.AmHost == true) player?.GetAbility<CamouflagerAbility>()?.SHRController?.Start();
+    }
+
     private void StartCamouflage()
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            _isCamouflaged = true;
+            foreach (var player in PlayerControl.AllPlayerControls)
+            {
+                if (player?.Data == null || player.Data.Disconnected || player.Data.IsDead) continue;
+                var layer = CustomCosmeticsLayers.ExistsOrInitialize(player.cosmetics);
+                layer.hat2?.StartCamouflage(player.CurrentOutfit.ColorId);
+                layer.visor2?.StartCamouflage(player.CurrentOutfit.ColorId);
+            }
+            NameText.UpdateAllNameInfo();
+            return;
+        }
         if (_isCamouflaged) return;
 
         _isCamouflaged = true;
@@ -174,6 +206,22 @@ public class CamouflagerAbility : AbilityBase
 
     private void EndCamouflage()
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            _isCamouflaged = false;
+            SHRController?.Stop();
+            if (_camouflageButtonAbility != null) _camouflageButtonAbility.isEffectActive = false;
+            if (!SHRActive)
+                foreach (var player in PlayerControl.AllPlayerControls)
+                {
+                    if (player?.Data == null || player.Data.Disconnected) continue;
+                    var target = player.CurrentOutfitType == PlayerOutfitType.Shapeshifted
+                        ? PlayerControl.AllPlayerControls.ToArray().FirstOrDefault(p => p.PlayerId == player.ShapeshiftedPlayerID()) : player;
+                    SuperNewRoles.CustomCosmetics.CosmeticsPlayer.PlayerControl_Shapeshift.Postfix(player, target ?? player, false);
+                }
+            NameText.UpdateAllNameInfo();
+            return;
+        }
         if (!_isCamouflaged) return;
 
         _isCamouflaged = false;
@@ -265,7 +313,7 @@ public class CamouflageButtonAbility : CustomButtonBase, IButtonEffect
     public float EffectTimer { get; set; }
     public Action OnEffectEnds => () =>
     {
-        _camouflagerAbility.RpcEndCamouflage();
+        if (!ModeManager.IsMode(ModeId.SuperHostRoles)) _camouflagerAbility.RpcEndCamouflage();
     };
 
     public override bool CheckIsAvailable()
@@ -275,7 +323,8 @@ public class CamouflageButtonAbility : CustomButtonBase, IButtonEffect
 
     public override void OnClick()
     {
-        _camouflagerAbility.RpcStartCamouflage();
+        if (ModeManager.IsMode(ModeId.SuperHostRoles)) CamouflagerAbility.RpcRequestSHRStart(Player);
+        else _camouflagerAbility.RpcStartCamouflage();
     }
 
     public bool IsEffectAvailable()

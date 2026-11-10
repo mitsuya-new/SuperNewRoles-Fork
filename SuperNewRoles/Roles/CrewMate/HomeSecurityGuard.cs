@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using AmongUs.GameOptions;
 using SuperNewRoles.CustomOptions;
@@ -19,7 +20,7 @@ class HomeSecurityGuard : RoleBase<HomeSecurityGuard>
             isTaskTrigger: () => false,
             countsForCrewWin: () => false,
             requiredTaskCount: () => 0,
-            taskOptions: () => new TaskOptionData(0, 0, 0)
+            taskOptions: () => SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) ? null : new TaskOptionData(0, 0, 0)
         ),
         () => new HomeSecurityGuardAbility(),
     ];
@@ -41,6 +42,25 @@ public class HomeSecurityGuardAbility : AbilityBase
     public const int TaskTextMax = 12;
     private ImportantTextTask _task;
     private int _currentIndex = -1;
+    private readonly HashSet<uint> _completedSHRTasks = new();
+
+    public override void AttachToAlls()
+    {
+        if (AmongUsClient.Instance?.AmHost == true && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+            SubscribeWithAbility(FixedUpdateEvent.Instance, CompleteSHRTasks);
+    }
+
+    private void CompleteSHRTasks()
+    {
+        var client = AmongUsClient.Instance;
+        if (client?.AmHost != true || !SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            || client.GameState != InnerNet.InnerNetClient.GameStates.Started || client.IsGameOver
+            || HudManager.Instance == null || HudManager.Instance.IsIntroDisplayed
+            || Player?.Data == null || Player.Data.Disconnected || Player.Data.Tasks == null) return;
+        foreach (var task in Player.Data.Tasks.ToArray())
+            if (task != null && !task.Complete && _completedSHRTasks.Add(task.Id))
+                Player.Player.RpcCompleteTask(task.Id);
+    }
 
     public override void AttachToLocalPlayer()
     {

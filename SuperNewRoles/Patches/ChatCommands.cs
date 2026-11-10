@@ -16,6 +16,13 @@ public static class SendChatPatch
     static bool Prefix(ChatController __instance)
     {
         string text = __instance.freeChatField.textArea.text;
+        if (AmongUsClient.Instance.AmHost && Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && Mode.SHRChatCommands.IsCommand(text))
+        {
+            Mode.SHRChatCommands.Handle(PlayerControl.LocalPlayer, text);
+            __instance.freeChatField.textArea.Clear();
+            __instance.timeSinceLastMessage = 0f;
+            return false;
+        }
         bool handled = false;
         if (AmongUsClient.Instance.GameState == InnerNetClient.GameStates.Started)
         {

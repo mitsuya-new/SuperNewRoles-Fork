@@ -31,11 +31,28 @@ class Bakery : RoleBase<Bakery>
 
 public class BakeryAbility : AbilityBase
 {
+    private static string shrBreadMessage;
+    private static int shrMeeting;
+    private static int shrGame;
+
+    [CustomRPC]
+    public static void RpcSetSHRBreadMessage(string message)
+    {
+        if (!Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return;
+        shrBreadMessage = message;
+        shrMeeting = MeetingStartEvent.MeetingCount;
+        shrGame = AmongUsClient.Instance.GameId;
+    }
+
+    internal static void ClearSHRBreadMessage() => shrBreadMessage = null;
+
     private static TextMeshPro confirmImpostorSecondText;
     private string ExileText
     {
         get
         {
+            if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && shrBreadMessage != null
+                && shrMeeting == MeetingStartEvent.MeetingCount && shrGame == AmongUsClient.Instance.GameId) return shrBreadMessage;
             var rand = new System.Random();
             // System.Random.NextのmaxValueはexclusive(排他的)なので、1から10の値を得るためには1と11を指定する
             return rand.Next(1, 11) == 1 ? ModTranslation.GetString("BakeryExileText2") : ModTranslation.GetString("BakeryExileText");

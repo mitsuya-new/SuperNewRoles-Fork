@@ -33,6 +33,7 @@ public class InvisibleAbility : CustomButtonBase, IButtonEffect
     public float EffectTimer { get; set; }
 
     private bool invisible;
+    private float nextSHRRefresh;
 
     public InvisibleAbility(float coolTime, float durationTime, bool canLighterSeeScientist, string sprite)
     {
@@ -63,6 +64,8 @@ public class InvisibleAbility : CustomButtonBase, IButtonEffect
     {
         base.DetachToAlls();
         _opacityFader.StopAll();
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+            SuperNewRoles.Mode.SHRPrivatePlayerEffects.SetHidden(Player, this, false, null);
     }
 
     public override void AttachToLocalPlayer()
@@ -91,10 +94,29 @@ public class InvisibleAbility : CustomButtonBase, IButtonEffect
     {
         SetInvisible(player, isInvisible);
         invisible = isInvisible;
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+            SuperNewRoles.Mode.SHRPrivatePlayerEffects.SetHidden(player, this, isInvisible, viewer =>
+            {
+                ExPlayerControl observer = viewer;
+                bool lighterActive = observer.GetAbility<SuperNewRoles.Mode.SHRCrewBoostAbility>()?.Active == true && observer.Role == RoleId.Lighter
+                    || observer.GetAbility<LighterAbility>()?.isEffectActive == true;
+                return SuperNewRoles.Mode.SHRPrivatePlayerEffects.ScientistShouldHide(viewer == player.Player,
+                    SuperNewRoles.Mode.SHRPlayerOptions.IsVanillaGuest(viewer), observer.IsImpostor(), observer.IsDead(), canLighterSeeScientist, lighterActive);
+            });
     }
 
     private void OnFixedUpdate()
     {
+        if (invisible && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+        {
+            if (Player.IsDead() || Player.Data.Disconnected || MeetingHud.Instance != null)
+                RpcSetInvisible(Player, false);
+            else if (Time.unscaledTime >= nextSHRRefresh)
+            {
+                nextSHRRefresh = Time.unscaledTime + 0.25f;
+                SuperNewRoles.Mode.SHRPrivatePlayerEffects.RefreshHidden(Player);
+            }
+        }
         if (invisible)
             _opacityFader.Apply(Player, CanSeeTranslucentState(Player) ? 0.4f : 0f, forceSnap: true);
     }

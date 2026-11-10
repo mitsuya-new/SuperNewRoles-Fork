@@ -54,9 +54,9 @@ public class CustomTaskAbility : AbilityBase, IPrioritizedAbility
             return;
         }
 
-        if (customTaskTypeAbility != null && !customTaskTypeAbility.ShouldChangeTask())
+        if (customTaskTypeAbility != null && (!customTaskTypeAbility.ShouldChangeTask()
+            || (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && customTaskTypeAbility.GetTargetTask() != null)))
         {
-            if (!player.AmOwner) return;
             int all = taskOptions?.Total ?? player.GetAllTaskForShowProgress().all;
             customTaskTypeAbility.AssignTasks(all);
             return;

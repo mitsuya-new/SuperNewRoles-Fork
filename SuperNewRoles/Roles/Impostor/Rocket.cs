@@ -10,6 +10,8 @@ using SuperNewRoles.Events;
 using SuperNewRoles.Events.PCEvents;
 using SuperNewRoles.Ability;
 using SuperNewRoles.CustomObject;
+using SuperNewRoles.Mode;
+using System.Linq;
 
 namespace SuperNewRoles.Roles.Impostor;
 
@@ -79,6 +81,13 @@ public class RocketGrabAbility : TargetCustomButtonBase
 
     public List<ExPlayerControl> GrabbedPlayers { get; } = new();
     private readonly Dictionary<byte, Vector2> _grabbedOriginalPositions = new();
+    private readonly Dictionary<byte, bool> _grabbedMoveable = new();
+    private float nextSHRSnap;
+    private bool IsSHR => ModeManager.IsMode(ModeId.SuperHostRoles);
+    private bool IsAuthority => IsSHR ? AmongUsClient.Instance?.AmHost == true : Player?.AmOwner == true;
+    private bool CanSendSHR => AmongUsClient.Instance?.AmHost == true
+        && AmongUsClient.Instance.GameState == InnerNet.InnerNetClient.GameStates.Started && !AmongUsClient.Instance.IsGameOver;
+    internal static float CooldownForCount(int count, float initial, float subsequent) => count == 0 ? initial : subsequent;
     private bool launchAfterMeeting = false;
     private bool launchAfterMeetingOption = false;
 
@@ -90,9 +99,10 @@ public class RocketGrabAbility : TargetCustomButtonBase
     public override Color32 OutlineColor => Rocket.Instance.RoleColor;
     // Implement required abstract member
     public override bool OnlyCrewmates => true; // Can grab Crewmates/Neutrals, adjust if Impostors should be grabbable
-    public override Func<ExPlayerControl, bool> IsTargetable => (player) => !GrabbedPlayers.Contains(player);
+    public override Func<ExPlayerControl, bool> IsTargetable => player => !GrabbedPlayers.Contains(player)
+        && (!IsSHR || !PenguinAbility.IsDragged(player) && !player.Player.onLadder && !player.Player.inMovingPlat);
 
-    public override float DefaultTimer => GrabbedPlayers.Count == 0 ? initialCooldown : subsequentCooldown;
+    public override float DefaultTimer => CooldownForCount(GrabbedPlayers.Count, initialCooldown, subsequentCooldown);
 
     public RocketGrabAbility(float initialCooldown, float subsequentCooldown, bool launchAfterMeeting)
     {
@@ -105,6 +115,16 @@ public class RocketGrabAbility : TargetCustomButtonBase
     public void SetLaunchAbility(RocketLaunchAbility launchAbility)
     {
         this.launchAbility = launchAbility;
+    }
+
+    internal ExPlayerControl FindSHRTarget() => SetTarget(onlyCrewmates: true, targetingPlayer: Player.Player, isTargetable: IsTargetable);
+    internal bool TryGrabSHR()
+    {
+        var target = FindSHRTarget();
+        if (target == null) return false;
+        RpcAddGrabbedPlayer(target);
+        launchAbility.ResetTimer();
+        return GrabbedPlayers.Contains(target);
     }
 
     public override bool CheckIsAvailable()
@@ -134,7 +154,7 @@ public class RocketGrabAbility : TargetCustomButtonBase
     public override void DetachToAlls()
     {
         base.DetachToAlls();
-        if (Player != null && Player.AmOwner && GrabbedPlayers.Count > 0)
+        if (Player != null && IsAuthority && GrabbedPlayers.Count > 0)
         {
             RpcClearGrabbedPlayers();
         }
@@ -142,13 +162,16 @@ public class RocketGrabAbility : TargetCustomButtonBase
 
     private void OnFixedUpdate()
     {
+        if (IsSHR && !CanSendSHR) return;
         if (Player == null || GrabbedPlayers.Count == 0) return;
-        if (Player.IsDead())
+        if (Player.IsDead() || Player.Data.Disconnected)
         {
-            if (Player.AmOwner)
+            if (IsAuthority)
                 RpcClearGrabbedPlayers();
             return;
         }
+        bool sync = IsSHR && Time.unscaledTime >= nextSHRSnap;
+        if (sync) nextSHRSnap = Time.unscaledTime + 0.1f;
         for (int i = GrabbedPlayers.Count - 1; i >= 0; i--)
         {
             var grabbedPlayer = GrabbedPlayers[i];
@@ -160,9 +183,9 @@ public class RocketGrabAbility : TargetCustomButtonBase
                 continue;
             }
 
-            if (grabbedPlayer.IsDead())
+            if (grabbedPlayer.IsDead() || grabbedPlayer.Data.Disconnected)
             {
-                if (Player.AmOwner)
+                if (IsAuthority)
                 {
                     RpcRemoveGrabbedPlayer(grabbedPlayer.PlayerId);
                 }
@@ -175,6 +198,12 @@ public class RocketGrabAbility : TargetCustomButtonBase
             }
             if (MeetingHud.Instance == null)
             {
+                if (IsSHR)
+                {
+                    if (sync) SHRVanillaRpcRouter.Teleport(grabbedPlayer, Player.transform.position);
+                    grabbedPlayer.MyPhysics.body.velocity = Vector2.zero;
+                    continue;
+                }
                 grabbedPlayer.NetTransform.SnapTo(Player.transform.position);
                 grabbedPlayer.MyPhysics.body.velocity = Vector2.zero;
                 grabbedPlayer.transform.position = Player.transform.position;
@@ -204,7 +233,10 @@ public class RocketGrabAbility : TargetCustomButtonBase
         if (staleIds != null)
         {
             for (int i = 0; i < staleIds.Count; i++)
+            {
                 _grabbedOriginalPositions.Remove(staleIds[i]);
+                _grabbedMoveable.Remove(staleIds[i]);
+            }
         }
 
         if (Player != null && Player.AmOwner && launchAbility != null)
@@ -213,7 +245,7 @@ public class RocketGrabAbility : TargetCustomButtonBase
 
     private void OnMeetingStart(MeetingStartEventData data)
     {
-        if (Player != null && Player.AmOwner && GrabbedPlayers.Count > 0)
+        if (Player != null && IsAuthority && GrabbedPlayers.Count > 0)
         {
             launchAfterMeeting = true;
         }
@@ -225,8 +257,8 @@ public class RocketGrabAbility : TargetCustomButtonBase
 
     private void OnWrapUp(WrapUpEventData data)
     {
-        if (Player == null || !Player.AmOwner) return;
-        if (launchAfterMeeting && Player.IsAlive() && GrabbedPlayers.Count > 0)
+        if (Player == null || !IsAuthority) return;
+        if (launchAfterMeeting && Player.IsAlive() && !Player.Data.Disconnected && data.exiled?.PlayerId != Player.PlayerId && GrabbedPlayers.Count > 0)
         {
             if (launchAbility != null)
             {
@@ -242,7 +274,7 @@ public class RocketGrabAbility : TargetCustomButtonBase
             }
         }
         launchAfterMeeting = false;
-        if (!Player.IsAlive() || (data.exiled != null && data.exiled.PlayerId == Player.PlayerId))
+        if (!Player.IsAlive() || Player.Data.Disconnected || (data.exiled != null && data.exiled.PlayerId == Player.PlayerId))
         {
             RpcClearGrabbedPlayers();
         }
@@ -256,7 +288,17 @@ public class RocketGrabAbility : TargetCustomButtonBase
         if (targetEx != null && !GrabbedPlayers.Contains(targetEx))
         {
             GrabbedPlayers.Add(targetEx);
-            _grabbedOriginalPositions[targetEx.PlayerId] = targetEx.GetTruePosition();
+            _grabbedOriginalPositions[targetEx.PlayerId] = IsSHR ? (Vector2)targetEx.transform.position : targetEx.GetTruePosition();
+            if (IsSHR)
+            {
+                _grabbedMoveable[targetEx.PlayerId] = targetEx.Player.moveable;
+                if (targetEx.AmOwner) targetEx.Player.moveable = false;
+                if (AmongUsClient.Instance?.AmHost == true)
+                {
+                    SHRPlayerOptions.Send(targetEx.Player);
+                    SHRVanillaRpcRouter.Teleport(targetEx, Player.transform.position);
+                }
+            }
             if (Player != null && Player.AmOwner && launchAbility != null)
             {
                 launchAbility.SetActive(launchAbility.CheckIsAvailable());
@@ -271,6 +313,8 @@ public class RocketGrabAbility : TargetCustomButtonBase
 
         bool removed = GrabbedPlayers.RemoveAll(player => player?.PlayerId == targetPlayerId) > 0;
         _grabbedOriginalPositions.Remove(targetPlayerId);
+        RestoreSHRMovement(ExPlayerControl.ById(targetPlayerId));
+        _grabbedMoveable.Remove(targetPlayerId);
         if (removed)
         {
             if (Player != null && Player.AmOwner && launchAbility != null)
@@ -289,10 +333,13 @@ public class RocketGrabAbility : TargetCustomButtonBase
     // Called locally by LaunchAbility after successful launch
     public void ClearGrabbedPlayersLocally(bool releaseAlivePlayers = true)
     {
+        var released = GrabbedPlayers.ToArray();
         if (releaseAlivePlayers)
             ReleaseGrabbedPlayersToOriginalPosition();
         GrabbedPlayers.Clear();
         _grabbedOriginalPositions.Clear();
+        foreach (var target in released) RestoreSHRMovement(target);
+        _grabbedMoveable.Clear();
         if (Player != null && Player.AmOwner && launchAbility != null)
         {
             launchAbility.SetActive(launchAbility.CheckIsAvailable());
@@ -306,10 +353,25 @@ public class RocketGrabAbility : TargetCustomButtonBase
             if (grabbedPlayer == null || !grabbedPlayer.IsAlive()) continue;
             if (!_grabbedOriginalPositions.TryGetValue(grabbedPlayer.PlayerId, out Vector2 originalPosition)) continue;
 
-            grabbedPlayer.transform.position = originalPosition;
-            grabbedPlayer.NetTransform.SnapTo(originalPosition);
+            if (IsSHR)
+            {
+                if (CanSendSHR) SHRVanillaRpcRouter.Teleport(grabbedPlayer, originalPosition);
+            }
+            else
+            {
+                grabbedPlayer.transform.position = originalPosition;
+                grabbedPlayer.NetTransform.SnapTo(originalPosition);
+            }
             grabbedPlayer.MyPhysics.body.velocity = Vector2.zero;
         }
+    }
+
+    private void RestoreSHRMovement(ExPlayerControl target)
+    {
+        if (!IsSHR || target?.Data == null) return;
+        if (_grabbedMoveable.Remove(target.PlayerId, out bool moveable) && target.AmOwner && target.IsAlive())
+            target.Player.moveable = moveable;
+        if (CanSendSHR) SHRPlayerOptions.Send(target.Player);
     }
 }
 
@@ -345,6 +407,12 @@ public class RocketLaunchAbility : CustomButtonBase
     public override void OnClick()
     {
         if (!CheckIsAvailable() || grabAbility == null) return;
+        TryLaunchSHR();
+    }
+
+    internal bool TryLaunchSHR()
+    {
+        if (Player == null || !Player.IsAlive() || grabAbility == null || grabAbility.GrabbedPlayers.Count == 0) return false;
         // Convert using .PlayerControl
         List<ExPlayerControl> playersToLaunch = grabAbility.GrabbedPlayers;
         if (playersToLaunch.Count > 0)
@@ -352,7 +420,9 @@ public class RocketLaunchAbility : CustomButtonBase
             RpcLaunchPlayers(playersToLaunch);
             // Reset grab ability cooldown to initial cooldown after launch
             grabAbility.ResetTimer();
+            return true;
         }
+        return false;
     }
 
 
@@ -380,6 +450,7 @@ public class RocketLaunchAbility : CustomButtonBase
 
         foreach (var targetControl in targets)
         {
+            if (targetControl?.Data == null || targetControl.Data.Disconnected) continue;
             // Get ExPlayerControl using GameData
             var playerInfo = GameData.Instance.GetPlayerById(targetControl.PlayerId);
             var targetEx = playerInfo != null ? (ExPlayerControl)playerInfo.Object : null;
@@ -389,7 +460,7 @@ public class RocketLaunchAbility : CustomButtonBase
                 targetEx.CustomDeath(CustomDeathType.LaunchByRocket, source: Player);
                 // SoundEffectManager.Instance?.PlaySound("RocketLaunch", false, 0.8f, launchPosition);
             }
-            new GameObject("RocketDeadbody").AddComponent<RocketDeadbody>().Init(targetEx, count, targets.Count);
+            if (targetEx != null) new GameObject("RocketDeadbody").AddComponent<RocketDeadbody>().Init(targetEx, count, targets.Count);
             count++;
         }
         grabAbility.ClearGrabbedPlayersLocally(releaseAlivePlayers: false);

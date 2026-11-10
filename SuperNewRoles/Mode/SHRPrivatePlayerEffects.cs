@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AmongUs.InnerNet.GameDataMessages;
@@ -8,11 +9,68 @@ using UnityEngine;
 
 namespace SuperNewRoles.Mode;
 
+internal sealed class SHRHiddenSources
+{
+    private readonly Dictionary<object, Func<PlayerControl, bool>> sources = new();
+    internal int Count => sources.Count;
+    internal void Set(object source, Func<PlayerControl, bool> predicate) => sources[source] = predicate;
+    internal void Remove(object source) => sources.Remove(source);
+    internal bool Matches(PlayerControl viewer) => sources.Values.Any(predicate => predicate(viewer));
+}
+
 public static class SHRPrivatePlayerEffects
 {
     private sealed record HiddenViewer(PlayerControl Player, int VentId);
     private sealed record HiddenVent(ExPlayerControl Target, HiddenViewer[] Viewers);
     private static readonly Dictionary<byte, HiddenVent> Hidden = new();
+    private static readonly Dictionary<byte, SHRHiddenSources> Requests = new();
+
+    internal static bool ScientistShouldHide(bool self, bool vanilla, bool impostor, bool dead, bool lighterCanSee, bool lighterActive)
+        => ShouldHideFrom(self, vanilla, impostor) && !dead && !(lighterCanSee && lighterActive);
+
+    internal static void SetHidden(ExPlayerControl target, object source, bool hidden, Func<PlayerControl, bool> predicate)
+    {
+        if (AmongUsClient.Instance?.AmHost != true || target?.Data == null || !ModeManager.IsMode(ModeId.SuperHostRoles)) return;
+        if (hidden)
+        {
+            if (!Requests.TryGetValue(target.PlayerId, out var requests)) Requests[target.PlayerId] = requests = new();
+            requests.Set(source, predicate);
+        }
+        else if (Requests.TryGetValue(target.PlayerId, out var requests))
+        {
+            requests.Remove(source);
+            if (requests.Count == 0) Requests.Remove(target.PlayerId);
+        }
+        RefreshHidden(target);
+    }
+
+    internal static void RefreshHidden(ExPlayerControl target)
+    {
+        if (AmongUsClient.Instance?.AmHost != true || target?.Data == null || !ModeManager.IsMode(ModeId.SuperHostRoles)) return;
+        if (!Requests.TryGetValue(target.PlayerId, out var requests) || requests.Count == 0 || target.IsDead() || target.Data.Disconnected)
+        {
+            HideInVent(target, false);
+            return;
+        }
+        if (ShipStatus.Instance?.AllVents == null || target.MyPhysics == null || target.NetTransform == null) return;
+        var vents = ShipStatus.Instance.AllVents.Where(v => v != null).ToArray();
+        if (vents.Length == 0) return;
+        var wanted = PlayerControl.AllPlayerControls.ToArray().Where(p => p?.Data != null && !p.Data.Disconnected
+            && requests.Matches(p)).ToArray();
+        Hidden.TryGetValue(target.PlayerId, out var previous);
+        var old = previous?.Viewers ?? Array.Empty<HiddenViewer>();
+        var current = wanted.Select(p => old.FirstOrDefault(v => v.Player == p)
+            ?? new HiddenViewer(p, vents.OrderByDescending(v => Vector2.Distance(v.transform.position, p.GetTruePosition())).First().Id)).ToArray();
+        Hidden[target.PlayerId] = new HiddenVent(target, current);
+        foreach (var viewer in old.Where(v => !wanted.Contains(v.Player)))
+            if (viewer.Player?.Data != null && !viewer.Player.Data.Disconnected && !target.Player.inVent)
+            {
+                SendVent(target, viewer.Player, viewer.VentId, false);
+                RestorePosition(target, viewer.Player);
+            }
+        foreach (var viewer in current.Where(v => !old.Any(o => o.Player == v.Player)))
+            SendVent(target, viewer.Player, viewer.VentId, true);
+    }
 
     internal static bool IsHidden(ExPlayerControl target) => target != null && Hidden.ContainsKey(target.PlayerId);
 
@@ -26,33 +84,36 @@ public static class SHRPrivatePlayerEffects
     internal static void HideInVent(ExPlayerControl target, bool hidden)
     {
         if (AmongUsClient.Instance?.AmHost != true || target?.Player == null || !ModeManager.IsMode(ModeId.SuperHostRoles)) return;
+        if (hidden)
+        {
+            SetHidden(target, target, true, viewer => ShouldHideFrom(viewer == target.Player,
+                SHRPlayerOptions.IsVanillaGuest(viewer), ((ExPlayerControl)viewer).IsImpostor()));
+            return;
+        }
         if (!hidden)
         {
+            Requests.Remove(target.PlayerId);
             if (!Hidden.Remove(target.PlayerId, out var state)) return;
             foreach (var viewer in state.Viewers)
                 if (viewer.Player?.Data != null && !viewer.Player.Data.Disconnected && !target.Player.inVent)
                     SendVent(target, viewer.Player, viewer.VentId, false);
-            if (target.IsAlive() && !target.Data.Disconnected)
-                new LateTask(() =>
-                {
-                    if (target?.Player == null || target.Data.Disconnected || !target.IsAlive() || Hidden.ContainsKey(target.PlayerId)
-                        || AmongUsClient.Instance?.GameState != InnerNet.InnerNetClient.GameStates.Started) return;
-                    foreach (var viewer in state.Viewers)
-                        if (viewer.Player?.Data != null && !viewer.Player.Data.Disconnected && !target.Player.inVent)
-                            SnapFor(target, viewer.Player, target.transform.position, restoring: true);
-                }, 0.65f, "SHR restore hidden player position");
+            foreach (var viewer in state.Viewers) RestorePosition(target, viewer.Player);
             return;
         }
-        if (Hidden.ContainsKey(target.PlayerId) || ShipStatus.Instance?.AllVents == null
-            || target.MyPhysics == null || target.NetTransform == null) return;
-        var vents = ShipStatus.Instance.AllVents.Where(v => v != null).ToArray();
-        if (vents.Length == 0) return;
-        var viewers = PlayerControl.AllPlayerControls.ToArray().Where(p => p?.Data != null && !p.Data.Disconnected
-            && ShouldHideFrom(p == target.Player, SHRPlayerOptions.IsVanillaGuest(p), ((ExPlayerControl)p).IsImpostor()))
-            .Select(p => new HiddenViewer(p, vents.OrderByDescending(v => Vector2.Distance(v.transform.position, p.GetTruePosition())).First().Id)).ToArray();
-        Hidden[target.PlayerId] = new HiddenVent(target, viewers);
-        foreach (var viewer in viewers) SendVent(target, viewer.Player, viewer.VentId, true);
-        Logger.Debug($"Hidden target={target.PlayerId} viewers={string.Join(",", viewers.Select(v => $"{v.Player.PlayerId}:vent{v.VentId}"))}", "SHR.Jammer");
+    }
+
+    private static void RestorePosition(ExPlayerControl target, PlayerControl viewer)
+    {
+        int gameId = AmongUsClient.Instance.GameId;
+        new LateTask(() =>
+        {
+            if (target?.Player == null || target.Data.Disconnected || !target.IsAlive() || IsHiddenFrom(target, viewer)
+                || AmongUsClient.Instance?.AmHost != true || AmongUsClient.Instance.GameId != gameId
+                || !ModeManager.IsMode(ModeId.SuperHostRoles)
+                || AmongUsClient.Instance.GameState != InnerNet.InnerNetClient.GameStates.Started) return;
+            if (viewer?.Data != null && !viewer.Data.Disconnected && !target.Player.inVent)
+                SnapFor(target, viewer, target.transform.position, restoring: true);
+        }, 0.65f, "SHR restore hidden player position");
     }
 
     private static void SendVent(ExPlayerControl target, PlayerControl viewer, int ventId, bool enter)
@@ -109,5 +170,6 @@ public static class SHRPrivatePlayerEffects
     {
         foreach (var state in Hidden.Values.ToArray()) HideInVent(state.Target, false);
         Hidden.Clear();
+        Requests.Clear();
     }
 }

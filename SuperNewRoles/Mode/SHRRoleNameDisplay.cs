@@ -21,9 +21,11 @@ public static class SHRRoleNameDisplay
             ? entry.Display : player.Data.PlayerName;
 
     internal static string FormatName(string role, string name, bool inMeeting)
-        => inMeeting
+        => string.IsNullOrEmpty(name) ? $"<size=75%>{role}</size>" : inMeeting
             ? $"{name}\n<size=75%>{role}</size>"
             : $"<size=75%>{role}</size>\n{name}";
+
+    internal static void Refresh() => nextUpdate = 0f;
 
     private static bool IsUnmodded(PlayerControl player)
         => !SyncVersion.VersionData.VersionMap.TryGetValue(player.PlayerId, out string version)
@@ -31,6 +33,7 @@ public static class SHRRoleNameDisplay
 
     public static void Restore()
     {
+        SHRDatahackerInformation.Clear();
         SHRMadKillerSupport.Restore();
         var client = AmongUsClient.Instance;
         if (client != null && client.AmHost)
@@ -61,7 +64,7 @@ public static class SHRRoleNameDisplay
             if (Sent.Count > 0) Restore();
             return;
         }
-        if (Time.unscaledTime < nextUpdate) return;
+        if (SHRAntiBlackout.Active || Time.unscaledTime < nextUpdate) return;
         nextUpdate = Time.unscaledTime + 0.5f;
         SHRMadKillerSupport.Update();
 
@@ -78,11 +81,22 @@ public static class SHRRoleNameDisplay
             ExPlayerControl exPlayer = player;
             if (exPlayer == null) continue;
             if (SHRWaveCannonController.IsDisplaying(player.PlayerId) && MeetingHud.Instance == null) continue;
-            bool hidden = exPlayer.TryGetAbility<HideMyRoleWhenAliveAbility>(out var hide) && hide.IsHide(exPlayer).role;
-            string original = player.Data.PlayerName;
-            string display = IsUnmodded(player) && !hidden
-                ? FormatName(NameText.GetRoleInfoText(exPlayer) + (exPlayer.GetAbility<SHRBatchRoleAbility>()?.Status ?? "")
-                    + NameText.GetTaskProgressText(exPlayer), original, meetingPending || MeetingHud.Instance != null)
+            string roleInfo = NameText.GetRoleInfoText(exPlayer);
+            foreach (var hide in exPlayer.GetAbilities<HideMyRoleWhenAliveAbility>())
+                hide.DisplayFalseRoleNameWhileAlive(exPlayer, ref roleInfo);
+            string original = SHRCamouflagerController.OriginalName(player);
+            bool masked = SHRCamouflagerController.IsMasked(player) && !meetingPending && MeetingHud.Instance == null;
+            string display = IsUnmodded(player)
+                ? FormatName(roleInfo + (masked ? "" : (exPlayer.GetAbility<SHRBatchRoleAbility>()?.Status ?? "")
+                    + (exPlayer.GetAbility<SHRCrewRoleAbility>()?.Status ?? ""))
+                    + (masked ? "" : exPlayer.GetAbility<SHRCrewActionAbility>()?.Status ?? "")
+                    + (masked ? "" : exPlayer.GetAbility<SHRConjurerAbility>()?.Status ?? "")
+                    + (masked ? "" : exPlayer.GetAbility<SHREvilSeerAbility>()?.Status ?? "")
+                    + (masked ? "" : exPlayer.GetAbility<SHRBansheeAbility>()?.Status ?? "")
+                    + (masked ? "" : exPlayer.GetAbility<SHRRocketAbility>()?.Status ?? "")
+                    + NameText.GetTaskProgressText(exPlayer)
+                    + (masked ? "" : exPlayer.GetAbility<SHREvilHackerAbility>()?.Status ?? "")
+                    + (masked ? "" : SHRDatahackerInformation.SelfArrows(exPlayer)), masked ? "" : original, meetingPending || MeetingHud.Instance != null)
                 : original;
             if (Sent.TryGetValue(player.PlayerId, out var previous)
                 && previous.Player == player && previous.Display == display) continue;
@@ -90,6 +104,7 @@ public static class SHRRoleNameDisplay
             player.RpcSetNamePrivate(display, player);
             Sent[player.PlayerId] = new SentName(player, original, display);
         }
+        SHRDatahackerInformation.Update();
     }
 
     [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
@@ -140,6 +155,7 @@ public static class SHRRoleNameDisplay
     {
         public static void Postfix()
         {
+            SHRDatahackerInformation.Clear();
             Sent.Clear();
             nextUpdate = 0f;
             meetingPending = false;

@@ -229,7 +229,7 @@ public static class ExclusivityOptionMenu
         var roles = RoleOptionManager.RoleOptions.Where(x =>
         {
             if (!SuperNewRoles.Mode.SHRRoleTypes.ShouldShowInSettings(x.RoleId,
-                SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))) return false;
+                SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles), GameOptionsManager.Instance.CurrentGameOptions.MapId)) return false;
             var roleInfo = CustomRoleManager.AllRoles.FirstOrDefault(r => r.Role == x.RoleId);
             if (roleInfo == null || roleInfo.HiddenOption) return false;
             return roleType switch

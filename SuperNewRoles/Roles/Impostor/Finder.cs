@@ -36,25 +36,41 @@ internal class Finder : RoleBase<Finder>
     public static int FinderRevealKillCount;
 }
 
+internal sealed class FinderKillProgress
+{
+    private readonly int needed;
+    private int kills;
+    internal bool Revealed { get; private set; }
+    internal FinderKillProgress(int needed) => this.needed = Math.Max(1, needed);
+    internal bool Record(bool succeeded)
+    {
+        if (!succeeded || Revealed) return false;
+        kills++;
+        if (kills < needed) return false;
+        Revealed = true;
+        return true;
+    }
+}
+
 public class FinderAbility : AbilityBase
 {
-    private readonly int _neededKills;
-    private int _killCount;
-    private bool _revealed;
+    private readonly FinderKillProgress progress;
     private KnowOtherAbility _knowMadmateAbility;
 
     public FinderAbility(int neededKills)
     {
-        _neededKills = neededKills;
+        progress = new FinderKillProgress(neededKills);
     }
 
     public override void AttachToAlls()
     {
         _knowMadmateAbility = new KnowOtherAbility(
-            player => _revealed && player.IsMadRoles(),
+            player => progress.Revealed && player.IsMadRoles(),
             () => false
         );
         Player.AttachAbility(_knowMadmateAbility, new AbilityParentAbility(this));
+        if (AmongUsClient.Instance?.AmHost == true && Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && !Player.AmOwner)
+            SubscribeWithAbility(MurderEvent.Instance, OnMurder);
     }
 
     public override void AttachToLocalPlayer()
@@ -65,14 +81,10 @@ public class FinderAbility : AbilityBase
 
     private void OnMurder(MurderEventData data)
     {
-        if (data.killer == Player && !_revealed)
-        {
-            _killCount++;
-            if (_killCount >= _neededKills)
-            {
-                _revealed = true;
-                NameText.UpdateAllNameInfo();
-            }
-        }
+        if (data.killer != Player) return;
+        bool succeeded = !Mode.ModeManager.IsMode(ModeId.SuperHostRoles) || data.resultFlags.HasFlag(MurderResultFlags.Succeeded);
+        if (progress.Record(succeeded)) NameText.UpdateAllNameInfo();
     }
+
+    internal bool CanIdentifySHR(ExPlayerControl target) => progress.Revealed && target.IsMadRoles();
 }

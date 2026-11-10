@@ -13,6 +13,9 @@ namespace SuperNewRoles.Mode;
 
 public static class SHRPlayerOptions
 {
+    internal static uint KillResetTarget(uint attackerNetId, uint? protectedTargetNetId)
+        => protectedTargetNetId ?? attackerNetId;
+
     internal static void WriteResetSequence(bool resetKill, bool resetAbility, RoleTypes? controlRole,
         Action writeOptions, Action<RoleTypes> writeRole, Action writeKillReset, Action writeAbilityReset, Action restoreOptions)
     {
@@ -33,10 +36,13 @@ public static class SHRPlayerOptions
                 || string.IsNullOrEmpty(version));
 
     public static float KillCooldown(ExPlayerControl player)
-        => player.Role == RoleId.DoubleKiller ? DoubleKiller.DoubleKillerMainKillCooldown
+        => player.Role == RoleId.Chief ? SHRCrewRoleAbility.Cooldown(player.Role)
+            : player.Role == RoleId.Rocket ? 0.001f
+            : player.Role == RoleId.DoubleKiller ? DoubleKiller.DoubleKillerMainKillCooldown
             : player.Role == RoleId.DarkKiller ? DarkKillerCooldown(ModHelpers.IsElectrical(),
                 GameManager.Instance.LogicOptions.currentGameOptions.GetFloat(FloatOptionNames.KillCooldown), DarkKiller.DarkKillerKillCoolTime)
-            : player.GetAbility<EvilGamblerAbility>()?.SHRKillCooldown
+            : player.GetAbility<DoppelgangerAbility>()?.SHRKillCooldown
+            ?? player.GetAbility<EvilGamblerAbility>()?.SHRKillCooldown
             ?? player.GetAbility<CustomKillButtonAbility>()?.DefaultTimer
             ?? GameManager.Instance.LogicOptions.currentGameOptions.GetFloat(FloatOptionNames.KillCooldown);
 
@@ -45,6 +51,15 @@ public static class SHRPlayerOptions
 
     public static float AbilityCooldown(ExPlayerControl player) => player.Role switch
     {
+        RoleId.EvilHacker => player.GetAbility<SHREvilHackerAbility>()?.Remaining ?? EvilHacker.EvilHackerCreateMadmateCooldown,
+        RoleId.Pusher => player.GetAbility<SHRPusherAbility>()?.Remaining ?? Pusher.PusherCooldown,
+        RoleId.Rocket => player.GetAbility<SHRRocketAbility>()?.Remaining ?? Rocket.RocketInitialGrabCooldown,
+        RoleId.Banshee => player.GetAbility<SHRBansheeAbility>()?.Remaining ?? Banshee.BansheeReleaseCooldown,
+        RoleId.Conjurer => player.GetAbility<SHRConjurerAbility>()?.Remaining ?? Conjurer.ConjurerBeaconCooldown,
+        _ when SHRCrewActionAbility.Supports(player.Role) => player.GetAbility<SHRCrewActionAbility>()?.Remaining ?? 0f,
+        _ when SHRCrewBoostAbility.Supports(player.Role) => player.GetAbility<SHRCrewBoostAbility>()?.Remaining ?? 0f,
+        _ when SHRCrewRoleAbility.Supports(player.Role) => player.GetAbility<SHRCrewRoleAbility>()?.RemainingCooldown
+            ?? SHRCrewRoleAbility.Cooldown(player.Role),
         _ when SHRBatchRoleAbility.Supports(player.Role) => player.GetAbility<SHRBatchRoleAbility>()?.RemainingCooldown
             ?? SHRBatchRoleAbility.DefaultCooldown(player.Role),
         RoleId.Jackal => player.GetAbility<JackalAbility>()?.JackData.SidekickCooldown ?? 0f,
@@ -55,11 +70,14 @@ public static class SHRPlayerOptions
         RoleId.SideKiller => SideKiller.SideKillerKillCooldown,
         RoleId.Penguin => player.GetAbility<PenguinAbility>()?.SHRAbilityCooldown ?? Penguin.PenguinCooldown,
         RoleId.SuicideWisher => SuicideWisher.SuicideWisherCoolTime,
+        RoleId.Doppelganger => Doppelganger.DoppelgangerCoolTime,
+        RoleId.Camouflager => player.GetAbility<CamouflagerAbility>()?.SHRController?.RemainingCooldown ?? Camouflager.CamouflagerCoolTime,
         _ => 0f,
     };
 
     public static void Send(PlayerControl player, float? abilityCooldown = null, float? killCooldown = null,
-        bool resetAbility = false, bool resetKill = false, float? playerSpeed = null, RoleTypes? controlRole = null)
+        bool resetAbility = false, bool resetKill = false, float? playerSpeed = null, RoleTypes? controlRole = null,
+        PlayerControl protectedTarget = null)
     {
         var client = AmongUsClient.Instance;
         if (client == null || !client.AmHost || !ModeManager.IsMode(ModeId.SuperHostRoles)
@@ -72,6 +90,25 @@ public static class SHRPlayerOptions
         var options = factory.FromBytes(factory.ToBytes(manager.LogicOptions.currentGameOptions,
             AprilFoolsMode.IsAprilFoolsModeToggledOn));
         ExPlayerControl ex = player;
+        if (SHRBalancerVotes.NativeVotingTime is { } votingTime) options.SetInt(Int32OptionNames.VotingTime, votingTime);
+        if (ex.GetAbility<KnowVoteAbility>() is { } vote) options.SetBool(BoolOptionNames.AnonymousVotes, vote.IsAnonymousVotes());
+        if (SHRCrewRoleAbility.HasCrewImpostorControls(ex.Role) && ShipStatus.Instance != null)
+        {
+            float radius = UnityEngine.Mathf.Lerp(ShipStatus.Instance.MinLightRadius, ShipStatus.Instance.MaxLightRadius,
+                SHRMadKillerSupport.LightFraction());
+            options.SetFloat(FloatOptionNames.ImpostorLightMod, options.GetFloat(FloatOptionNames.CrewLightMod)
+                * radius / UnityEngine.Mathf.Max(0.001f, ShipStatus.Instance.MaxLightRadius));
+        }
+        if (ex.Role is RoleId.Technician or RoleId.SilverBullet)
+        {
+            options.SetFloat(FloatOptionNames.EngineerCooldown, 0.001f);
+            options.SetFloat(FloatOptionNames.EngineerInVentMaxTime, 0f);
+        }
+        if (ex.Role == RoleId.ToiletFan || SHRCrewBoostAbility.UsesEngineer(ex.Role) || SHRCrewActionAbility.UsesEngineer(ex.Role))
+        {
+            options.SetFloat(FloatOptionNames.EngineerCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
+            options.SetFloat(FloatOptionNames.EngineerInVentMaxTime, 0f);
+        }
         if (ex.Role == RoleId.VampireDependent && Vampire.VampireDependentHasReverseVision && ShipStatus.Instance != null)
         {
             float radius = SHRVampireRestrictions.DependentVisionRadius(SHRMadKillerSupport.LightFraction(),
@@ -89,14 +126,15 @@ public static class SHRPlayerOptions
             options.SetFloat(FloatOptionNames.TrackerDuration, 0f);
             if (resetKill) resetAbility = true;
         }
-        if (ex.Role == RoleId.MadKiller && ShipStatus.Instance != null)
+        if ((ex.Role == RoleId.MadKiller || ex.GetAbility<SHRHackerMadmateAbility>() != null) && ShipStatus.Instance != null)
         {
             float light = SHRMadKillerSupport.LightFraction();
             float radius = UnityEngine.Mathf.Lerp(ShipStatus.Instance.MinLightRadius, ShipStatus.Instance.MaxLightRadius, light);
             bool impostorVision = ex.HasImpostorVision();
             if (impostorVision)
-                options.SetFloat(FloatOptionNames.CrewLightMod, options.GetFloat(FloatOptionNames.ImpostorLightMod)
-                    * ShipStatus.Instance.MaxLightRadius / UnityEngine.Mathf.Max(0.001f, radius));
+                options.SetFloat(FloatOptionNames.CrewLightMod, SHRHackerMadmateAbility.CrewVision(true,
+                    options.GetFloat(FloatOptionNames.CrewLightMod), options.GetFloat(FloatOptionNames.ImpostorLightMod),
+                    ShipStatus.Instance.MinLightRadius, ShipStatus.Instance.MaxLightRadius, light));
             else
                 options.SetFloat(FloatOptionNames.ImpostorLightMod, options.GetFloat(FloatOptionNames.CrewLightMod)
                     * radius / UnityEngine.Mathf.Max(0.001f, ShipStatus.Instance.MaxLightRadius));
@@ -104,18 +142,43 @@ public static class SHRPlayerOptions
             options.SetFloat(FloatOptionNames.EngineerInVentMaxTime, 0f);
         }
         if (ex.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true) playerSpeed = 0.0001f;
-        if (PenguinAbility.IsDragged(ex)) playerSpeed = 0.0001f;
+        if (ex.GetAbility<SHRCrewBoostAbility>()?.Active == true)
+        {
+            if (ex.Role is RoleId.SpeedBooster or RoleId.EvilSpeedBooster)
+                playerSpeed = options.GetFloat(FloatOptionNames.PlayerSpeedMod) * (ex.Role == RoleId.SpeedBooster
+                    ? SuperNewRoles.Roles.Crewmate.SpeedBooster.SpeedBoosterMultiplier : EvilSpeedBooster.EvilSpeedBoosterMultiplier);
+            if (ex.Role == RoleId.WiseMan) playerSpeed = 0.0001f;
+            if (ex.Role == RoleId.Lighter && ShipStatus.Instance != null)
+                options.SetFloat(FloatOptionNames.CrewLightMod, SHRCrewBoostAbility.LighterCrewVision(
+                    SuperNewRoles.Roles.Crewmate.Lighter.LighterRadius, ShipStatus.Instance.MinLightRadius,
+                    ShipStatus.Instance.MaxLightRadius, SHRMadKillerSupport.LightFraction()));
+        }
+        if (PenguinAbility.IsDragged(ex) || SHRNunPlatform.IsPassenger(ex) || SHRFlightSync.IsFlying(ex)
+            || ex.GetAbility<SHREvilHackerAbility>()?.FreezesMovement == true) playerSpeed = 0.0001f;
         if (playerSpeed.HasValue) options.SetFloat(FloatOptionNames.PlayerSpeedMod, playerSpeed.Value);
+        float clergyVision = SHRClergyVision.ForPlayer(ex);
+        if (clergyVision != 1f)
+        {
+            options.SetFloat(FloatOptionNames.CrewLightMod, options.GetFloat(FloatOptionNames.CrewLightMod) * clergyVision);
+            options.SetFloat(FloatOptionNames.ImpostorLightMod, options.GetFloat(FloatOptionNames.ImpostorLightMod) * clergyVision);
+        }
         float kill = UnityEngine.Mathf.Max(0.001f, killCooldown ?? KillCooldown(ex));
         options.SetFloat(FloatOptionNames.KillCooldown, resetKill ? kill * 2f : kill);
-        if (SHRBatchRoleAbility.HasPhantom(ex.Role))
+        if (SHRBatchRoleAbility.HasPhantom(ex.Role) || ex.Role is RoleId.Doorr or RoleId.EvilSpeedBooster or RoleId.EvilScientist or RoleId.Rocket or RoleId.Pusher or RoleId.Nun)
             options.SetFloat(FloatOptionNames.PhantomCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
         if (ex.Role == RoleId.ShiftActor)
         {
             options.SetFloat(FloatOptionNames.ShapeshifterCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
             options.SetFloat(FloatOptionNames.ShapeshifterDuration, ShiftActor.ShiftActorDuration);
         }
-        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SideKiller or RoleId.Penguin or RoleId.SuicideWisher)
+        if (ex.Role is RoleId.Conjurer or RoleId.Banshee or RoleId.EvilHacker)
+            options.SetFloat(FloatOptionNames.ShapeshifterCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
+        if (ex.Role == RoleId.Doppelganger)
+        {
+            options.SetFloat(FloatOptionNames.ShapeshifterCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
+            options.SetFloat(FloatOptionNames.ShapeshifterDuration, Doppelganger.DoppelgangerDurationTime);
+        }
+        if (ex.Role is RoleId.Jackal or RoleId.SelfBomber or RoleId.Samurai or RoleId.WaveCannon or RoleId.SideKiller or RoleId.Penguin or RoleId.SuicideWisher or RoleId.Camouflager)
             options.SetFloat(FloatOptionNames.PhantomCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
         if (ex.Role == RoleId.SerialKiller)
             options.SetFloat(FloatOptionNames.ShapeshifterCooldown, UnityEngine.Mathf.Max(0.001f, abilityCooldown ?? AbilityCooldown(ex)));
@@ -136,7 +199,7 @@ public static class SHRPlayerOptions
             WriteResetSequence(resetKill, resetAbility, controlRole, WriteOptions, WriteRole, () =>
             {
                 StartRpc(RpcCalls.MurderPlayer);
-                writer.WriteNetObject(player);
+                writer.WritePacked(KillResetTarget(player.NetId, protectedTarget?.NetId));
                 writer.Write((int)(MurderResultFlags.DecisionByHost | MurderResultFlags.FailedProtected));
                 writer.EndMessage();
             }, () =>

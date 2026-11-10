@@ -45,6 +45,11 @@ namespace SuperNewRoles.Roles.Ability
         [CustomRPC]
         public void RpcRepair()
         {
+            if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+            {
+                SuperNewRoles.Mode.SHRCrewRoleAbility.RepairSabotages(Player.Player);
+                return;
+            }
             if (Player.Player.IsMushroomMixupActive())
             {
                 ModHelpers.RpcFixingSabotage(TaskTypes.MushroomMixupSabotage);

@@ -166,6 +166,8 @@ public class CustomSidekickButtonAbility : TargetCustomButtonBase
             RoleManager.Instance.SetRole(player, data.RoleType);
         if (data.RoleId == RoleId.MadKiller)
             SuperNewRoles.Mode.SHRMadKillerSupport.OnCreated(player);
+        if (SuperNewRoles.Mode.SHRHackerMadmateAbility.IsCreation(Player.Role, data.RoleId))
+            SuperNewRoles.Mode.SHRHackerMadmateAbility.OnCreated(player);
         NameText.UpdateAllNameInfo();
     }
 }

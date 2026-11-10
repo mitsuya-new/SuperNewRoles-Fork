@@ -431,7 +431,7 @@ public static class RoleOptionMenu
                 var roleInfo = CustomRoleManager.AllRoles.FirstOrDefault(r => r.Role == ro.RoleId);
                 return roleInfo != null && roleInfo.OptionTeam == type && !roleInfo.HiddenOption
                     && SuperNewRoles.Mode.SHRRoleTypes.ShouldShowInSettings(ro.RoleId,
-                        SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles));
+                        SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles), GameOptionsManager.Instance.CurrentGameOptions.MapId);
             })
             .ToArray();
 

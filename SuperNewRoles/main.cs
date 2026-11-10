@@ -114,7 +114,6 @@ public partial class SuperNewRolesPlugin : BasePlugin
         Logger = Log;
 
         Instance = this;
-        Encryption.SetEncryptKey();
 
         LoadAnnouncementImageDecoder();
         LevelImposterSupport.Initialize();

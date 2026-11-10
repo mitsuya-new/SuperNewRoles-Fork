@@ -99,6 +99,13 @@ public sealed class DyingMessengerReportAbility : AbilityBase
     [CustomRPC]
     private void RpcAddChatDyning(ExPlayerControl deadPlayer, string text)
     {
+        if (AmongUsClient.Instance?.AmHost == true && Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+            && Mode.SHRPlayerOptions.IsVanillaGuest(Player.Player))
+        {
+            if (MeetingHud.Instance != null && deadPlayer?.Data != null && Player.IsAlive())
+                Mode.SHRChatCommands.Reply(Player.Player, deadPlayer.Data.DefaultOutfit.PlayerName, text);
+            return;
+        }
         if (PlayerControl.LocalPlayer == null) return;
         if (Player == null || !Player.AmOwner) return;
         if (HudManager.Instance?.Chat == null) return;

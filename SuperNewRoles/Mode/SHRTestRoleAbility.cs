@@ -28,9 +28,7 @@ public sealed class SHRTestRoleAbility : AbilityBase
         || (Player.Role == RoleId.SideKiller && Player.GetAbility<SideKillerAbility>()?.madKillerAbility != null)
         || (Player.Role == RoleId.Samurai && Player.GetAbility<AreaKillButtonAbility>()?.IsUsed == true);
     internal bool TaskerImpostor { get; private set; }
-    private bool grantedPet;
     private int lastTrackerSecond = -1;
-    private const string TestPet = "pet_test";
     private static bool IsHostSHR => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
         && ModeManager.IsMode(ModeId.SuperHostRoles);
 
@@ -59,6 +57,15 @@ public sealed class SHRTestRoleAbility : AbilityBase
     public static void AttachIfSupported(ExPlayerControl player)
     {
         SHRBatchRoleAbility.AttachIfSupported(player);
+        SHRCrewRoleAbility.AttachIfSupported(player);
+        SHRCrewBoostAbility.AttachIfSupported(player);
+        SHRCrewActionAbility.AttachIfSupported(player);
+        SHRConjurerAbility.AttachIfSupported(player);
+        SHREvilSeerAbility.AttachIfSupported(player);
+        SHRBansheeAbility.AttachIfSupported(player);
+        SHRRocketAbility.AttachIfSupported(player);
+        SHRPusherAbility.AttachIfSupported(player);
+        SHREvilHackerAbility.AttachIfSupported(player);
         if (!IsHostSHR || !NeedsVanillaControls(player) || TriggerFor(player.Role) == 0) return;
         if (player.Role == RoleId.Tasker && !Tasker.TaskerCanKill) return;
         Logger.Debug($"Binding player={player.PlayerId} role={player.Role} trigger={TriggerFor(player.Role)}", "SHR.Controls");
@@ -233,12 +240,6 @@ public sealed class SHRTestRoleAbility : AbilityBase
                 SetSelfRole(Player.Player, SHRRoleTypes.GetTaskerRole(Tasker.TaskerCanKill, false));
                 SHRPlayerOptions.Send(Player.Player, killCooldown: SHRKillRequests.RemainingCooldown(Player.Player),
                     resetKill: true, resetAbility: true);
-                string pet = Player.Data.DefaultOutfit.PetId;
-                if (string.IsNullOrEmpty(pet) || pet.ToLowerInvariant() is "pet_emptypet" or "pet_enmptypet" or "pet_empty" or "pet_none" or "none")
-                {
-                    grantedPet = true;
-                    Player.Player.RpcSetPet(TestPet);
-                }
                 break;
             case RoleId.SelfBomber:
                 SendRoleView(Player.Player, Player.Player, RoleTypes.Phantom);
@@ -303,8 +304,6 @@ public sealed class SHRTestRoleAbility : AbilityBase
     private void Restore()
     {
         if (!IsHostSHR || Player?.Data == null || Player.Data.Disconnected) return;
-        if (grantedPet && Player.Data.DefaultOutfit.PetId == TestPet) Player.Player.RpcSetPet("");
-        grantedPet = false;
         if (configured && Player.IsAlive()) SendRoleView(Player.Player, Player.Player, originalRole);
         configured = false;
     }

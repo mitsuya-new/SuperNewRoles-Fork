@@ -138,6 +138,8 @@ public static class FlashHandler
     [CustomRPC]
     public static void RpcShowFlash(this PlayerControl player, Color color, float duration = 1f)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+            SuperNewRoles.Mode.SHRCrewRoleAbility.Flash(player, duration);
         if (PlayerControl.LocalPlayer != player) return;
 
         ShowFlash(color, duration);
@@ -145,6 +147,9 @@ public static class FlashHandler
     [CustomRPC]
     public static void RpcShowFlashAll(Color color, float duration = 1f)
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+            foreach (var player in PlayerControl.AllPlayerControls)
+                SuperNewRoles.Mode.SHRCrewRoleAbility.Flash(player, duration);
         ShowFlash(color, duration);
     }
 }

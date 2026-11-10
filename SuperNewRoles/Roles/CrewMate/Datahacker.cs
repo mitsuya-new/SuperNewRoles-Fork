@@ -264,15 +264,23 @@ public class DatahackerAbility : AbilityBase
             UnityEngine.Object.Destroy(arrow.arrow);
     }
 
+    internal bool CanSeeSHRRole(ExPlayerControl target, out Color32 color, out bool showName)
+    {
+        color = Color.white;
+        showName = hackingData.CanSeeRoleNames;
+        return Player.IsAlive() && CanSeeOtherPlayer().hackingCompleted
+            && (MeetingHud.Instance == null || hackingData.CanSeeDuringMeeting) && CanSeeRole(target, out color);
+    }
+
+    internal bool ShowSHRExposureArrow => hackingData.ShowArrowWhenExposed;
+
     private bool CanSeeRole(ExPlayerControl target, out Color32 color)
     {
         color = Color.white;
-        Logger.Info($"CanSeeRole: {target.Data.PlayerName}");
         if (target.IsNeutral())
         {
             if (!hackingData.CanSeeNeutral)
                 return false;
-            Logger.Info("Neutral");
             color = new(127, 127, 127, byte.MaxValue);
             return hackingData.CanSeeKillingNeutral ? target.IsKiller() : true;
         }
@@ -280,7 +288,6 @@ public class DatahackerAbility : AbilityBase
         {
             if (!hackingData.CanSeeImpostor)
                 return false;
-            Logger.Info("Impostor");
             color = Palette.ImpostorRed;
             return true;
         }
@@ -295,12 +302,10 @@ public class DatahackerAbility : AbilityBase
                 if (!hackingData.CanSeeMadmates)
                     return false;
 
-                Logger.Info("Madmates");
                 color = Palette.ImpostorRed;
                 return true;
             }
 
-            Logger.Info("Crewmate");
             color = target.Data.Role.TeamColor;
             return true;
         }

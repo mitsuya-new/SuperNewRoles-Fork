@@ -369,8 +369,16 @@ public static class CustomOptionManager
 public class CustomOption
 {
     private bool IsUnavailableInSHR => SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
-        && ((FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Impostor.Tasker)
+        && ((FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Crewmate.Santa)
+            && SuperNewRoles.Roles.Ability.SantaAbility.IsUnavailableSHROption(FieldInfo.Name))
+            || (FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Impostor.Tasker)
             && FieldInfo.Name == nameof(SuperNewRoles.Roles.Impostor.Tasker.TaskerIsKillCoolTaskNow))
+            || FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.CrewMate.Seer)
+            || (FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Crewmate.Celebrity)
+                && (FieldInfo.Name == nameof(SuperNewRoles.Roles.Crewmate.Celebrity.CelebrityEnableGlowEffect)
+                    || FieldInfo.Name == nameof(SuperNewRoles.Roles.Crewmate.Celebrity.CelebrityGlowOnlyWhileAlive)))
+            || (FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Crewmate.HamburgerShop)
+                && FieldInfo.Name == nameof(SuperNewRoles.Roles.Crewmate.HamburgerShop.HamburgerShopChangeAllTasksToBurger))
             || (FieldInfo?.DeclaringType == typeof(SuperNewRoles.Roles.Impostor.Vampire)
             && (FieldInfo.Name == nameof(SuperNewRoles.Roles.Impostor.Vampire.VampireNoDeathOnVitals)
                 || FieldInfo.Name == nameof(SuperNewRoles.Roles.Impostor.Vampire.VampireBloodstainDurationTurn)

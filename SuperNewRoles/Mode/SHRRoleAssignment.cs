@@ -42,9 +42,9 @@ public static class SHRRoleAssignment
         if (!unmoddedViewer) return vanillaRole;
         if (isSelf && unmoddedSubject)
             return SHRRoleTypes.GetInitialRole(customRole) ?? vanillaRole;
-        if (viewerRole is RoleId.Jackal or RoleId.Sheriff && subjectIsImpostor)
+        if ((viewerRole == RoleId.Jackal || SHRCrewRoleAbility.HasCrewImpostorControls(viewerRole)) && subjectIsImpostor)
             return RoleTypes.Scientist;
-        if (unmoddedSubject && customRole is RoleId.Jackal or RoleId.Sheriff)
+        if (unmoddedSubject && (customRole == RoleId.Jackal || SHRCrewRoleAbility.HasCrewImpostorControls(customRole)))
             return RoleTypes.Scientist;
         return vanillaRole;
     }

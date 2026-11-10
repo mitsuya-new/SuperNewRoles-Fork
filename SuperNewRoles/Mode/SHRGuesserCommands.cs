@@ -12,6 +12,7 @@ namespace SuperNewRoles.Mode;
 
 public static class SHRGuesserCommands
 {
+    internal static bool CanUse(RoleId role) => role is RoleId.EvilGuesser or RoleId.NiceGuesser;
     private const string Usage = "【ゲッサー】/bt [色] [役職名]\n例：/bt 赤 シェリフ（色番号・英語の役職名も使用可能）";
 
     internal static bool IsCommand(string text)
@@ -71,8 +72,8 @@ public static class SHRGuesserCommands
         ExPlayerControl player = source;
         var ability = player.GetAbility<GuesserAbility>();
         string error = null;
-        if (player.Role != RoleId.EvilGuesser || ability == null)
-            error = "このコマンドはイビルゲッサー専用です。";
+        if (!CanUse(player.Role) || ability == null)
+            error = "このコマンドはゲッサー専用です。";
         else if (source.Data.IsDead) return;
         else if (MeetingHud.Instance == null) error = "会議中に使用してください。";
         else if (!SHRMeetingChat.Ready) error = "会議開始後の案内が表示されてから入力してください。";
@@ -99,7 +100,7 @@ public static class SHRGuesserCommands
     public static void SendMeetingInstructions()
     {
         foreach (var player in ExPlayerControl.ExPlayerControls)
-            if (player.Role == RoleId.EvilGuesser && player.IsAlive() && !player.Data.Disconnected)
+            if (CanUse(player.Role) && player.IsAlive() && !player.Data.Disconnected)
                 SHRMeetingChat.Reply(player.Player, Usage + $"\n残り弾数：{player.GetAbility<GuesserAbility>()?.Count ?? 0}");
     }
 

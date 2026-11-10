@@ -8,6 +8,13 @@ namespace SuperNewRoles.Tests;
 
 public class SHRCooldownResetTests
 {
+    [Fact]
+    public void ShieldFeedbackTargetsTheDefenderWhileOrdinaryCooldownResetsKeepTheAttacker()
+    {
+        Assert.Equal(71u, SHRPlayerOptions.KillResetTarget(17u, 71u));
+        Assert.Equal(17u, SHRPlayerOptions.KillResetTarget(17u, null));
+    }
+
     [Theory]
     [InlineData(false, 30f, 5f, 30f)]
     [InlineData(true, 30f, 5f, 5f)]

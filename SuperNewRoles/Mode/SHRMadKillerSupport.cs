@@ -77,7 +77,9 @@ public static class SHRMadKillerSupport
         {
             if (!SHRPlayerOptions.IsVanillaGuest(viewer) || viewer.Data.IsDead) continue;
             ExPlayerControl viewerEx = viewer;
-            if (viewerEx.Role == RoleId.MadKiller && ShipStatus.Instance != null)
+            if ((viewerEx.Role == RoleId.MadKiller || SHRCrewRoleAbility.HasCrewImpostorControls(viewerEx.Role)
+                || viewerEx.GetAbility<SHRHackerMadmateAbility>() != null)
+                && ShipStatus.Instance != null)
             {
                 var state = (viewer, LightFraction(), viewerEx.GetAbility<MadKillerAbility>()?.IsAwakened == true, viewerEx.HasImpostorVision());
                 if (!Options.TryGetValue(viewer.PlayerId, out var old) || old != state)
@@ -89,6 +91,7 @@ public static class SHRMadKillerSupport
             foreach (var subject in PlayerControl.AllPlayerControls)
             {
                 if (subject == viewer || subject?.Data == null || subject.Data.Disconnected) continue;
+                if (SHRCamouflagerController.IsMasked(subject) && MeetingHud.Instance == null) continue;
                 ExPlayerControl target = subject;
                 bool recognized = target.Role == RoleId.MadKiller && viewerEx.IsImpostor()
                     && CanIdentify(target.GetAbility<MadKillerAbility>()?.IsAwakened == true, SideKiller.CannotSeeMadKillerBeforePromotion);
@@ -96,6 +99,7 @@ public static class SHRMadKillerSupport
                 recognized |= viewerEx.Role == RoleId.MadKiller && target.IsImpostor()
                     && CanIdentifyImpostors(viewerEx.GetAbility<MadKillerAbility>()?.IsAwakened == true,
                         SideKiller.CannotSeeMadKillerBeforePromotion, SideKiller.MadKillerCannotSeeImpostorBeforePromotion);
+                recognized |= viewerEx.GetAbility<SHRHackerMadmateAbility>()?.KnowsImpostors == true && target.IsImpostor();
                 var key = (subject.PlayerId, viewer.PlayerId);
                 if (SHRWaveCannonController.IsDisplaying(subject.PlayerId) && MeetingHud.Instance == null)
                 {

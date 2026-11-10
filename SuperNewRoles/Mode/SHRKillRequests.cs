@@ -13,10 +13,10 @@ public static class SHRKillRequests
     private static readonly Dictionary<byte, float> ReadyAt = new();
     public static void Reset() => ReadyAt.Clear();
 
-    internal static void SetRemainingCooldown(PlayerControl player, float remaining)
+    internal static void SetRemainingCooldown(PlayerControl player, float remaining, PlayerControl protectedTarget = null)
     {
         ReadyAt[player.PlayerId] = Time.unscaledTime + Mathf.Max(0f, remaining);
-        SHRPlayerOptions.Send(player, killCooldown: remaining, resetKill: true);
+        SHRPlayerOptions.Send(player, killCooldown: remaining, resetKill: true, protectedTarget: protectedTarget);
     }
 
     public static float RemainingCooldown(PlayerControl player)
@@ -52,10 +52,15 @@ public static class SHRKillRequests
             || !SHRPlayerOptions.IsVanillaGuest(__instance)) return true;
         ExPlayerControl killer = __instance;
         ExPlayerControl victim = target;
+        if (killer.GetAbility<SHRRocketAbility>()?.TryLaunchFromKill() == true) return false;
         var ability = killer.GetAbility<CustomKillButtonAbility>();
+        var chief = killer.GetAbility<SuperNewRoles.Roles.Crewmate.ChiefAbility>();
         bool permitted = ability != null ? ability.CanKill() : __instance.Data.Role?.IsImpostor == true;
+        if (chief != null) permitted = chief.CanAppointSHR;
+        if (killer.Role is SuperNewRoles.Roles.RoleId.ToiletFan or SuperNewRoles.Roles.RoleId.NiceButtoner or SuperNewRoles.Roles.RoleId.Doorr or SuperNewRoles.Roles.RoleId.Conjurer or SuperNewRoles.Roles.RoleId.Rocket) permitted = false;
         if (killer.Role == SuperNewRoles.Roles.RoleId.DoubleKiller) permitted = true;
         if (killer.GetAbility<WaveCannonAbility>()?.SHRController?.Busy == true) permitted = false;
+        if (killer.GetAbility<SHREvilHackerAbility>()?.FreezesMovement == true) permitted = false;
         if (killer.GetAbility<PenguinAbility>() is { } penguin && !penguin.CanUseNormalKill) permitted = false;
         if (killer.Role == SuperNewRoles.Roles.RoleId.Tasker
             && (!SuperNewRoles.Roles.Impostor.Tasker.TaskerCanKill
@@ -66,7 +71,7 @@ public static class SHRKillRequests
             || target.Data.Disconnected || target.inVent || target.onLadder || target.inMovingPlat) rejection = "target unavailable";
         else if (!permitted || SuperNewRoles.Patches.SetTargetPatch.IsMadKillerTeammate(killer, victim)
             || (ability?.IsTargetable?.Invoke(victim) == false)
-            || ((ability == null || ability.OnlyCrewmates) && target.Data.Role.IsImpostor)) rejection = "role permission";
+            || (chief == null && (ability == null || ability.OnlyCrewmates) && target.Data.Role.IsImpostor)) rejection = "role permission";
         else if (SHRWaveCannonController.IsProtected(victim)) rejection = "wave cannon protection";
         else if (ReadyAt.TryGetValue(__instance.PlayerId, out float ready) && Time.unscaledTime < ready) rejection = "cooldown";
         else
@@ -80,10 +85,24 @@ public static class SHRKillRequests
         if (rejection != null)
         {
             Logger.Debug($"Kill rejected player={__instance.PlayerId} target={target?.PlayerId} reason={rejection}", "SHR.Controls");
+            if (rejection == "actor unavailable")
+                Logger.Debug($"Kill actor state player={__instance.PlayerId} game={client.GameState} gameOver={client.IsGameOver}"
+                    + $" transition={SHRAntiBlackout.Active} meeting={MeetingHud.Instance != null} exile={ExileController.Instance != null}"
+                    + $" hud={HudManager.Instance != null} intro={HudManager.Instance?.IsIntroDisplayed}"
+                    + $" dead={__instance.Data?.IsDead} disconnected={__instance.Data?.Disconnected}"
+                    + $" vent={__instance.inVent} walkingToVent={__instance.walkingToVent} ladder={__instance.onLadder}"
+                    + $" platform={__instance.inMovingPlat} dragged={PenguinAbility.IsDragged(killer)}"
+                    + $" zipline={ShipStatus.Instance?.TryCast<FungleShipStatus>()?.Zipline?.playerIdHands.ContainsKey(__instance.PlayerId) == true}",
+                    "SHR.Controls");
             __instance.RpcMurderPlayer(target ?? __instance, false);
             return false;
         }
         ReadyAt[__instance.PlayerId] = Time.unscaledTime + Mathf.Max(0.35f, SHRPlayerOptions.KillCooldown(killer));
+        if (chief != null)
+        {
+            chief.TryAppointSHR(victim);
+            return false;
+        }
         bool doubleMain = killer.Role == SuperNewRoles.Roles.RoleId.DoubleKiller;
         bool acted = !doubleMain && (ability?.TryKillTarget(victim) ?? false);
         if (ability == null || doubleMain) SHRMurderSync.Murder(killer, victim);

@@ -58,6 +58,7 @@ public class CelebrityAbility : AbilityBase
     // 固定更新イベントハンドラ - 発光効果を管理
     private void OnFixedUpdate()
     {
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return;
         if (!Data.EnableGlowEffect) return;
         if (MeetingHud.Instance != null || ExileController.Instance != null) return;
         // 生存状態の確認

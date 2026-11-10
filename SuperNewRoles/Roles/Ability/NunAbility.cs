@@ -3,6 +3,7 @@ using SuperNewRoles.Roles.Ability.CustomButton;
 using SuperNewRoles.Modules;
 using UnityEngine;
 using BepInEx.Unity.IL2CPP.Utils.Collections;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Ability;
 
@@ -27,16 +28,29 @@ public class NunAbility : CustomButtonBase
 
         MovingPlatformBehaviour platform = airshipStatus.GapPlatform;
         if (platform == null) return;
-        RpcUsePlatform(platform.IsLeft, platform.Target?.PlayerId ?? byte.MaxValue);
+        RpcUsePlatform(platform.IsLeft, ModeManager.IsMode(ModeId.SuperHostRoles) ? SHRNunPlatform.PassengerId(platform) : platform.Target?.PlayerId ?? byte.MaxValue);
         ResetTimer();
+    }
+
+    internal bool TryUseSHR()
+    {
+        var platform = ShipStatus.Instance?.TryCast<AirshipStatus>()?.GapPlatform;
+        if (platform == null) return false;
+        RpcUsePlatform(platform.IsLeft, SHRNunPlatform.PassengerId(platform));
+        ResetTimer();
+        return true;
     }
 
     [CustomRPC]
     public void RpcUsePlatform(bool startIsLeft, byte movingTargetId)
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true
+            && (AmongUsClient.Instance.GameState != InnerNet.InnerNetClient.GameStates.Started || AmongUsClient.Instance.IsGameOver
+                || MeetingHud.Instance != null || ExileController.Instance != null)) return;
         AirshipStatus airshipStatus = GameObject.FindObjectOfType<AirshipStatus>();
         if (airshipStatus && airshipStatus.GapPlatform != null)
         {
+            if (ModeManager.IsMode(ModeId.SuperHostRoles)) SHRNunPlatform.Cancel();
             airshipStatus.GapPlatform.StopAllCoroutines();
             airshipStatus.GapPlatform.StartCoroutine(NotMoveUsePlatform(airshipStatus.GapPlatform, startIsLeft, movingTargetId).WrapToIl2Cpp());
         }
@@ -86,6 +100,7 @@ public class NunAbility : CustomButtonBase
         }
 
         platform.IsLeft = !startIsLeft;
+        if (ModeManager.IsMode(ModeId.SuperHostRoles)) SHRNunPlatform.Begin(platform, carryMovingTarget ? movingTarget : null, movingTarget);
 
         if (carryMovingTarget)
         {
@@ -116,6 +131,7 @@ public class NunAbility : CustomButtonBase
         }
 
         platform.Target = null;
+        if (ModeManager.IsMode(ModeId.SuperHostRoles)) SHRNunPlatform.Finish(platform);
     }
 
     public override bool CheckIsAvailable()
@@ -127,10 +143,10 @@ public class NunAbility : CustomButtonBase
     private static bool IsTargetOnPlatform(MovingPlatformBehaviour platform, PlayerControl target)
     {
         if (platform == null || target == null) return false;
-        return Vector3.Distance(target.transform.position, platform.transform.position) <= 1.25f;
+        return SHRNunPlatform.IsOnPlatform(Vector3.Distance(target.transform.position, platform.transform.position));
     }
 
-    private static void RestoreInterruptedTarget(PlayerControl target, bool releaseMovement)
+    internal static void RestoreInterruptedTarget(PlayerControl target, bool releaseMovement)
     {
         if (target == null) return;
 

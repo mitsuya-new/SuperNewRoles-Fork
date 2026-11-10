@@ -275,7 +275,7 @@ public static class BulkRoleSettings
             foreach (var roleOption in RoleOptionManager.RoleOptions)
             {
                 if (!SuperNewRoles.Mode.SHRRoleTypes.ShouldShowInSettings(roleOption.RoleId,
-                    SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))) continue;
+                    SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles), GameOptionsManager.Instance.CurrentGameOptions.MapId)) continue;
                 var roleBase = CustomRoleManager.AllRoles.FirstOrDefault(r => r.Role == roleOption.RoleId);
                 if (roleBase != null && !roleBase.HiddenOption && roleBase.OptionTeam == RoleOptionMenu.RoleOptionMenuObjectData.CurrentRoleType && roleOption.NumberOfCrews > 0)
                 {

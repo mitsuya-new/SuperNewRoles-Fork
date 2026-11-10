@@ -8,6 +8,7 @@ using SuperNewRoles.Modules;
 using SuperNewRoles.CustomOptions;
 using SuperNewRoles.Roles.Crewmate;
 using AmongUs.GameOptions;
+using SuperNewRoles.Mode;
 
 namespace SuperNewRoles.Roles.Ability;
 
@@ -54,6 +55,8 @@ public class NiceRedRidingHoodReviveAbility : AbilityBase, IAbilityCount
 
     private void OnWrapUpEvent(WrapUpEventData data)
     {
+        if (ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost != true) return;
+        if (Player?.Data == null || Player.Data.Disconnected) return;
         if (!IsRevivable || Player.IsAlive() || Killer == null) return;
         // 追放者がキラーの場合、復活判定
         if (data.exiled != null && data.exiled == Killer)
@@ -84,6 +87,7 @@ public class NiceRedRidingHoodReviveAbility : AbilityBase, IAbilityCount
         MurderDataManager.RevivedMurderData(Player);
         Killer = null;
         Player.Data.IsDead = false;
+        if (ModeManager.IsMode(ModeId.SuperHostRoles)) SHRReviveSync.NotifyRevived(Player);
 
         Logger.Info($"復活完了 残り復活回数: {RemainingReviveCount}", "NiceRedRidingHood");
     }
@@ -95,6 +99,8 @@ public class NiceRedRidingHoodReviveAbility : AbilityBase, IAbilityCount
 
         Killer = killer;
         IsRevivable = true;
+        if (ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+            SHRRedRidingHoodGhosts.Refresh(Player.Player);
         Logger.Info($"ナイス赤ずきん {Player.Player.name} がキラー {Killer.Player.name} に殺されました", "NiceRedRidingHood");
         return true;
     }

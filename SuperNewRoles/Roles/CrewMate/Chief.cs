@@ -71,6 +71,35 @@ class Chief : RoleBase<Chief>
 
 public class ChiefAbility : AbilityBase
 {
+    internal bool CanAppointSHR => _canAppointSheriff;
+    internal ExPlayerControl VisibleSheriff => _canSeeCreatedSheriff ? _createdSheriff?.Player : null;
+    internal static bool CanIdentifyCreatedSheriff(bool enabled, byte? appointedId, byte targetId, RoleId role, bool alive)
+        => enabled && appointedId == targetId && role == RoleId.Sheriff && alive;
+
+    internal bool CanIdentifySheriff(ExPlayerControl target)
+        => target != null && CanIdentifyCreatedSheriff(_canSeeCreatedSheriff, _createdSheriff?.Player?.PlayerId,
+            target.PlayerId, target.Role, target.IsAlive());
+    internal bool TryAppointSHR(ExPlayerControl target)
+    {
+        if (!_canAppointSheriff || !IsTargetable(target)) return false;
+        _sidekickButton.TryCreateSidekick(target);
+        return !_canAppointSheriff;
+    }
+
+    [CustomRPC]
+    public static void RpcSHRChiefAppointed(ChiefAbility chief, ExPlayerControl target, bool success)
+    {
+        chief._canAppointSheriff = false;
+        chief._isAppointFailure = !success;
+        if (success) chief._createdSheriff = target.GetAbility<SheriffAbility>();
+        if (AmongUsClient.Instance?.AmHost != true) return;
+        SuperNewRoles.Mode.SHRTestRoleAbility.SetSelfRole(chief.Player, RoleTypes.Crewmate);
+        if (success)
+        {
+            SuperNewRoles.Mode.SHRTestRoleAbility.SetSelfRole(target, RoleTypes.Impostor);
+        }
+        else chief.Player.RpcCustomDeath(CustomDeathType.Suicide);
+    }
     private CustomSidekickButtonAbility _sidekickButton;
     private bool _canAppointSheriff = true;
     /// <summary>シェリフ任命可否判定が 失敗しているか</summary>
@@ -112,6 +141,7 @@ public class ChiefAbility : AbilityBase
         exPlayer.AttachAbility(_sidekickButton, abilityParentAbility);
 
         SubscribeWithAbility(NameTextUpdateEvent.Instance, OnNameTextUpdate);
+        SubscribeWithAbility(NameTextUpdateVisiableEvent.Instance, data => ApplySheriffNameColor(data.Player));
     }
 
     // 対象を任命可能かどうかの判定
@@ -152,12 +182,18 @@ public class ChiefAbility : AbilityBase
     {
         _canAppointSheriff = false;
 
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles))
+        {
+            RpcSHRChiefAppointed(this, target, !_isAppointFailure);
+            if (_isAppointFailure) return;
+        }
+
         // 対象の役職判定
         if (_isAppointFailure) // 対象が 任命不可の役職ならば 自身が死亡 (メイン処理)
         {
             new LateTask(() =>
             {
-                ExPlayerControl.LocalPlayer.RpcCustomDeath(CustomDeathType.Suicide);
+                Player.RpcCustomDeath(CustomDeathType.Suicide);
             }, 0f, "ChiefSelfDeathOnAppointFailure");
         }
         else // 任命判定が成功しているなら 任命 (補助処理 (基本的にSKButton側で 既に任命処理が終わっている))
@@ -175,6 +211,8 @@ public class ChiefAbility : AbilityBase
         if (sheriffAbility.Player.AmOwner)
             sheriffAbility.ResetTimer();
         sheriffAbility.Count = maxKillCount;
+        if (SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles) && AmongUsClient.Instance?.AmHost == true)
+            SuperNewRoles.Mode.SHRKillRequests.SetRemainingCooldown(target.Player, killCooldown);
         if (!isOldHasTak)
         {
             CustomTaskAbility customTaskAbility = new(
@@ -190,10 +228,12 @@ public class ChiefAbility : AbilityBase
     // 作成したシェリフを表示するための処理を追加
     public void OnNameTextUpdate(NameTextUpdateEventData data)
     {
-        if (_createdSheriff?.Player != null &&
-            _canSeeCreatedSheriff &&
-            data.Player.PlayerId == _createdSheriff.Player.PlayerId &&
-            _createdSheriff.Player.IsAlive())
-            NameText.SetNameTextColor(_createdSheriff.Player, Sheriff.Instance.RoleColor);
+        ApplySheriffNameColor(data.Player);
+    }
+
+    private void ApplySheriffNameColor(ExPlayerControl target)
+    {
+        if (Player.AmOwner && CanIdentifySheriff(target))
+            NameText.SetNameTextColor(target, Sheriff.Instance.RoleColor, true);
     }
 }

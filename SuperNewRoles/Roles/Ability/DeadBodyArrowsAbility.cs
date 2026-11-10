@@ -156,7 +156,7 @@ public class DeadBodyArrowsAbility : AbilityBase
         return count;
     }
 
-    private static bool IsTrackableDeadBody(DeadBody dead)
+    internal static bool IsTrackableDeadBody(DeadBody dead)
     {
         return dead != null
             && !OrpheusMainAbility.IsManagedCorpseBody(dead)
@@ -193,7 +193,7 @@ public class DeadBodyArrowsAbility : AbilityBase
     /// <summary>死体用矢印の色をモードに応じて取得する</summary>
     /// <param name="db">色を取得したい死体</param>
     /// <returns>死体用矢印の色</returns>
-    private Color ResolveDeadBodyArrowColor(DeadBody db)
+    internal Color ResolveDeadBodyArrowColor(DeadBody db)
     {
         var exp = ExPlayerControl.ById(db.ParentId);
         int deadBodyColorId;

@@ -14,6 +14,7 @@ public static class SHRMeetingChat
     private static MeetingHud meeting;
     private static int generation;
     private static int privateSerialization;
+    internal static bool IsSerializingPrivateState => privateSerialization != 0;
     private static bool showingLocalSystemMessage;
     public static bool Ready { get; private set; }
     private static bool IsHostSHR => AmongUsClient.Instance != null && AmongUsClient.Instance.AmHost
@@ -26,7 +27,7 @@ public static class SHRMeetingChat
     internal static string FormatAnnouncementText(string text)
         => "\n" + text.Trim('\r', '\n') + "\n";
 
-    public static void ShowLocalSystemMessage(string text, string title = null)
+    public static void ShowLocalSystemMessage(string text, string title = null, bool textInName = false)
     {
         var player = PlayerControl.LocalPlayer;
         if (player?.Data == null || HudManager.Instance?.Chat == null) return;
@@ -36,7 +37,7 @@ public static class SHRMeetingChat
         {
             showingLocalSystemMessage = true;
             if (title != null) player.SetName(title);
-            HudManager.Instance.Chat.AddChat(player, title == null ? text : FormatAnnouncementText(text));
+            HudManager.Instance.Chat.AddChat(player, title == null || textInName ? text : FormatAnnouncementText(text));
         }
         finally
         {
@@ -90,6 +91,8 @@ public static class SHRMeetingChat
 
     internal static RoleTypes GetCurrentViewRole(PlayerControl viewer, PlayerControl subject)
     {
+        if (SHRRedRidingHoodGhosts.HidesInformation(viewer))
+            return SHRRedRidingHoodGhosts.HiddenRole(viewer == subject, subject.Data.IsDead);
         ExPlayerControl ex = subject;
         var originalRole = subject.Data.Role;
         var role = SHRRoleAssignment.GetViewRole(ex.Role, originalRole.Role,
@@ -97,6 +100,10 @@ public static class SHRMeetingChat
             ((ExPlayerControl)viewer).Role, true, originalRole.IsImpostor);
         if (viewer.PlayerId == subject.PlayerId)
         {
+                if (ex.GetAbility<SHRHackerMadmateAbility>() is { } hackerMadmate) role = hackerMadmate.ControlRole;
+                if (ex.GetAbility<SHREvilHackerAbility>() is { HasMadmateUse: false }) role = RoleTypes.Impostor;
+            if (ex.GetAbility<SuperNewRoles.Roles.Crewmate.ChiefAbility>()?.CanAppointSHR == false)
+                role = RoleTypes.Crewmate;
             if (ex.Role == RoleId.Mafia)
                 role = SuperNewRoles.Roles.Impostor.Mafia.IsKillFlag() ? RoleTypes.Impostor : RoleTypes.Crewmate;
             if (ex.GetAbility<SHRBatchRoleAbility>()?.Exhausted == true)
@@ -134,6 +141,16 @@ public static class SHRMeetingChat
         {
             data.IsDead = dead;
             data.Role = originalRole;
+        }
+        string chiefName = SHRDatahackerInformation.GetName(viewer, subject) ?? SHRCrewRoleAbility.GetChiefDisplayName(viewer, subject);
+        SHRPets.AppendPetState(writer, subject, viewer);
+        if (chiefName != null)
+        {
+            writer.StartMessage((byte)GameDataTypes.RpcFlag);
+            writer.WritePacked(subject.NetId);
+            writer.Write((byte)RpcCalls.SetName);
+            new RpcSetNameMessage(subject.NetId, subject.Data.NetId, chiefName).SerializeRpcValues(writer);
+            writer.EndMessage();
         }
     }
 
@@ -207,12 +224,17 @@ public static class SHRMeetingChat
         }
     }
 
-    public static void Reply(PlayerControl viewer, string text, string title = null)
+    public static void Reply(PlayerControl viewer, string text, string title = null, bool textInName = false)
     {
         if (!IsHostSHR || viewer?.Data == null || viewer.Data.Disconnected) return;
+        if (textInName)
+        {
+            title = SHRChatCommands.FormatReplyName(title, text);
+            text = " ";
+        }
         if (viewer.AmOwner)
         {
-            ShowLocalSystemMessage(text, title);
+            ShowLocalSystemMessage(text, title, textInName);
             return;
         }
         int id = AmongUsClient.Instance.GetClientIdFromCharacter(viewer);
@@ -225,7 +247,7 @@ public static class SHRMeetingChat
                 Start(packet, id);
                 WriteName(title);
                 BeginRpc(RpcCalls.SendChat);
-                packet.Write(FormatAnnouncementText(text));
+                packet.Write(textInName ? text : FormatAnnouncementText(text));
                 packet.EndMessage();
                 WriteName(SHRRoleNameDisplay.GetSelfDisplayName(viewer));
                 packet.EndMessage();
@@ -260,6 +282,11 @@ public static class SHRMeetingChat
         {
             if (showingLocalSystemMessage) return true;
             if (!ModeManager.IsMode(ModeId.SuperHostRoles) || sourcePlayer?.Data == null || chatText == null) return true;
+            if (SHRChatCommands.IsCommand(chatText))
+            {
+                if (IsHostSHR) SHRChatCommands.Handle(sourcePlayer, chatText);
+                return false;
+            }
             if (SHRGuesserCommands.IsCommand(chatText))
             {
                 if (IsHostSHR) SHRGuesserCommands.Handle(sourcePlayer, chatText);

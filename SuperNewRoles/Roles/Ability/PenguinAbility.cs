@@ -28,7 +28,8 @@ public class PenguinAbility : TargetCustomButtonBase, IButtonEffect
     internal float SHRAbilityCooldown => targetPlayer == null ? DefaultTimer : Mathf.Max(0f, remaining);
     internal static bool IsDragged(ExPlayerControl player)
         => ModeManager.IsMode(ModeId.SuperHostRoles) && ExPlayerControl.ExPlayerControls.Any(
-            owner => owner.GetAbility<PenguinAbility>()?.targetPlayer == player);
+            owner => owner.GetAbility<PenguinAbility>()?.targetPlayer == player
+                || owner.GetAbility<RocketAbility>()?.GrabAbility?.GrabbedPlayers.Contains(player) == true);
 
     internal ExPlayerControl FindSHRTarget()
         => targetPlayer != null ? null : SetTarget(onlyCrewmates: true, targetingPlayer: Player.Player,

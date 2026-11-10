@@ -12,6 +12,7 @@ public class SHRVanillaRpcRouterTests
     [Theory]
     [InlineData(CustomDeathType.Kill, "Kill")]
     [InlineData(CustomDeathType.Exile, "Exile")]
+    [InlineData(CustomDeathType.FalseCharge, "FalseCharge")]
     [InlineData(CustomDeathType.Suicide, "Suicide")]
     [InlineData(CustomDeathType.Revange, "Revenge")]
     [InlineData(CustomDeathType.VampireWithDead, "VampireLinkedDeath")]

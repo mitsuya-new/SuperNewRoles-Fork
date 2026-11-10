@@ -34,7 +34,6 @@ public static class DevicesPatch
     public static Dictionary<string, HashSet<byte>> UsePlayers = new();
     public static Dictionary<string, float> DeviceTimers = new();
     public static float SyncTimer;
-    private static readonly HashSet<int> OverlapPlayerIds = new();
     private static readonly List<int> ColorIds = new();
     public enum DeviceType
     {
@@ -238,12 +237,9 @@ public static class DevicesPatch
                     continue;
                 }
 
-                OverlapPlayerIds.Clear();
                 ColorIds.Clear();
                 int num = plainShipRoom.roomArea.OverlapCollider(__instance.filter, __instance.buffer);
-                int count = 0;
-                int numDeadIcons = 0;
-                int numImpostorIcons = 0;
+                var count = new AdminRoomCount();
 
                         for (int j = 0; j < num; j++)
                         {
@@ -257,12 +253,7 @@ public static class DevicesPatch
                                 if (DevicesPatch.DontCountBecausePortableAdmin && blackHatHacker != null && blackHatHacker.AdminAbility != null &&
                                     !blackHatHacker.InfectedPlayerId.Contains(deadBodyComponent.ParentId)) continue;
 
-                                if (canSeeDeadIcon)
-                                {
-                                    numDeadIcons++;
-                                }
-
-                                count++;
+                                count.AddCorpse();
                                 ColorIds.Add(deadPlayerData.Player.CurrentOutfit.ColorId);
                             }
                             else
@@ -271,23 +262,21 @@ public static class DevicesPatch
                                 if (component?.Player == null) continue;
                                 if (component.Data == null || component.Data.Disconnected || component.Data.IsDead) continue;
                                 if (!__instance.showLivePlayerPosition && component.AmOwner) continue;
-                                if (!OverlapPlayerIds.Add(component.PlayerId)) continue;
-
-                                if (((ExPlayerControl)component).GetAbility<HideInAdminAbility>()?.IsHideInAdmin ?? false) continue;
 
                                 // BlackHatHackerのフィルター
                                 if (DevicesPatch.DontCountBecausePortableAdmin && blackHatHacker != null && blackHatHacker.AdminAbility != null &&
                                     !blackHatHacker.InfectedPlayerId.Contains(component.PlayerId) && !component.AmOwner) continue;
+                                if (!count.AddPlayer(component.PlayerId,
+                                    component.GetAbility<HideInAdminAbility>()?.IsHideInAdmin == true,
+                                    component.IsImpostor())) continue;
                                 if (DevicesPatch.DontCountBecausePortableAdmin && blackHatHacker != null && blackHatHacker.AdminAbility != null && BlackHatHacker.BlackHatHackerIsAdminColor)
                                     ColorIds.Add(component.Player.CurrentOutfit.ColorId);
-                                count++;
-                                if (canSeeImpostorIcon && component.IsImpostor())
-                                {
-                                    numImpostorIcons++;
-                                }
                             }
                         }
-                        counterArea.UpdateCount(count);
+                        counterArea.UpdateCount(count.Total);
+                        var details = count.VisibleDetails(true, canSeeImpostorIcon, canSeeDeadIcon);
+                        int numImpostorIcons = details.Impostors;
+                        int numDeadIcons = details.Corpses;
 
                         foreach (PoolableBehavior icon in counterArea.myIcons)
                         {

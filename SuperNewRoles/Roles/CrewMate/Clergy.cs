@@ -145,6 +145,9 @@ public class ClergyAbility : CustomButtonBase, IButtonEffect
         return player.IsImpostor() || (Data.ActiveForNeutralKiller && player.IsNeutral() && player.IsKiller());
     }
 
+    internal float SHRMultiplier(ExPlayerControl player)
+        => CheckPlayer(player) ? Mode.SHRClergyVision.VisionMultiplier(transitionTimer / TRANSITION_DURATION, Data.VisionMultiplier) : 1f;
+
     private void OnMeetingStart(MeetingStartEventData data)
     {
         active = false;

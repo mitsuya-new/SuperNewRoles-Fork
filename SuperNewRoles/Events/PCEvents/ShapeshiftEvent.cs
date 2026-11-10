@@ -33,6 +33,13 @@ public static class TryShapeshiftPatch
 {
     public static bool Prefix(PlayerControl __instance, PlayerControl target, bool shouldAnimate)
     {
+        if (Mode.SHRCamouflagerController.BlocksShape(__instance, target)) return false;
+        if (Roles.Ability.CamouflagerAbility.SHRActive && !Mode.SHRCamouflagerController.Applying
+            && AmongUsClient.Instance?.AmHost == false)
+        {
+            RpcCustomShapeshift(__instance, target, shouldAnimate);
+            return false;
+        }
         if (Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return true;
         RpcCustomShapeshift(__instance, target, shouldAnimate);
         return false;
@@ -48,6 +55,7 @@ public static class ShapeshiftEventPatch
 {
     public static void Postfix(PlayerControl __instance, PlayerControl targetPlayer, bool animate)
     {
+        if (Mode.SHRCamouflagerController.Applying || Roles.Ability.CamouflagerAbility.SHRActive) return;
         ShapeshiftEvent.Invoke(__instance, targetPlayer, animate);
     }
 }

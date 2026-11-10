@@ -57,6 +57,16 @@ class Bait : RoleBase<Bait>
 
 class BaitAbility : AbilityBase
 {
+    private bool HostHandlesGuest => AmongUsClient.Instance?.AmHost == true
+        && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)
+        && SuperNewRoles.Mode.SHRPlayerOptions.IsVanillaGuest(Player.Player);
+
+    public override void AttachToOthers()
+    {
+        if (HostHandlesGuest) SubscribeWithAbility(MurderEvent.Instance, OnKilled);
+    }
+
+    public override void DetachToOthers() => _isDetached = true;
     private bool _isDetached;
 
     internal static bool ShouldSkipEventProcessing()
@@ -138,7 +148,7 @@ class BaitAbility : AbilityBase
 
     private void TryReport(ExPlayerControl killer, ExPlayerControl target)
     {
-        if (_isDetached || ShouldSkipEventProcessing())
+        if (_isDetached || (HostHandlesGuest ? MeetingHud.Instance != null || ExileController.Instance != null : ShouldSkipEventProcessing()))
             return;
         if (AmongUsClient.Instance == null || AmongUsClient.Instance.IsGameOver)
             return;

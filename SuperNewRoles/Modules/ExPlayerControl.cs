@@ -701,6 +701,7 @@ public class ExPlayerControl
     }
     public bool IsCountTask()
     {
+        if (Role == RoleId.Sheriff && SuperNewRoles.Mode.ModeManager.IsMode(ModeId.SuperHostRoles)) return false;
         var taskAbilities = GetPrioritizedAbilities<CustomTaskAbility>();
         if (taskAbilities != null)
         {
@@ -744,6 +745,9 @@ public class ExPlayerControl
         {
             return true;
         }
+
+        if (GetAbility<SuperNewRoles.Roles.Crewmate.ChiefAbility>()?.CanIdentifySheriff(otherPlayer) == true)
+            return true;
 
         // ローカルプレイヤーが生きている場合はfalse
         if (!IsDead())
